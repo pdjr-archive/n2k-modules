@@ -3,6 +3,7 @@
 Each module includes one or more hardware designs and an associated
 collection of firmware.
 
+| Module | Description |
 |:-------|:-------------------------------------------------------|
 | THR100 | Thruster module (combined switch and relay interfaces) |
 | TMP108 | Temperature module |
