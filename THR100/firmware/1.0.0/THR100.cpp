@@ -124,21 +124,23 @@
 #define PRODUCT_FIRMWARE_VERSION "1.0.0 (May 2021)"
 #define PRODUCT_LEN 1
 #define PRODUCT_N2K_VERSION 2101
-#define PRODUCT_SERIAL_CODE "002-849" // PRODUCT_CODE + DEVICE_UNIQUE_NUMBER
+#define PRODUCT_SERIAL_CODE "002-849"
 #define PRODUCT_TYPE "THRMOD"
 #define PRODUCT_VERSION "1.0 (May 2021)"
 
 /**********************************************************************
- * THRUSTER PROGRAMMED DEFAULTS - these are for "MV Beatrice"
+ * THRUSTER PROGRAMMED DEFAULTS - these will differ for each target
+ * installation and should be set in external configuration.
+ *
+ * #define THRUSTER_SPEED_CONTROL 100
+ * #define THRUSTER_AZIMUTH_CONTROL 0.0
+ * #define THRUSTER_MOTOR_TYPE 4
+ * #define THRUSTER_MOTOR_CURRENT 0
+ * #define THRUSTER_MOTOR_TEMPERATURE 273
+ * #define THRUSTER_MOTOR_POWER_RATING 8000
+ * #define THRUSTER_MAXIMUM_MOTOR_TEMPERATURE_RATING 373.0
+ * #define THRUSTER_MAXIMUM_ROTATIONAL_SPEED 2000
  */
-#define THRUSTER_SPEED_CONTROL 100                      // Always 100%
-#define THRUSTER_AZIMUTH_CONTROL 0.0                    // WTF should this be?
-#define THRUSTER_MOTOR_TYPE 4                           // Hydraulic
-#define THRUSTER_MOTOR_CURRENT 0                        // Not applicable
-#define THRUSTER_MOTOR_TEMPERATURE 273                  // We don't measure this
-#define THRUSTER_MOTOR_POWER_RATING 8000                // 8kW
-#define THRUSTER_MAXIMUM_MOTOR_TEMPERATURE_RATING 373.0 // 100C
-#define THRUSTER_MAXIMUM_ROTATIONAL_SPEED 2000          // RPM
 
 /**********************************************************************
  * Include the build.h header file which can be used to override any or
