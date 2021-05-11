@@ -609,15 +609,15 @@ Wire Notes Line
 Wire Notes Line
 	2800 700  2800 2950
 Wire Wire Line
-	1850 1500 2800 1500
+	1850 1400 2800 1400
+Text Label 2800 1400 0    50   ~ 0
+MODE_ADDR_0
 Text Label 2800 1500 0    50   ~ 0
-MODE_SEL
-Text Label 2800 1600 0    50   ~ 0
-COMMON
-Text Label 4250 1100 2    50   ~ 0
-MODE_SEL
+MODE_ADDR_1
+Text Label 4250 1300 2    50   ~ 0
+MODE_ADDR_0
 Text Label 4250 1200 2    50   ~ 0
-COMMON
+MODE_ADDR_1
 $Comp
 L Diode:1N4007 D7
 U 1 1 60A32E32
@@ -1118,9 +1118,9 @@ Wire Wire Line
 Wire Wire Line
 	9950 4300 9950 4350
 Connection ~ 9950 4350
-Text Label 4250 1300 2    50   ~ 0
-PS_RLY
 Text Label 4250 1400 2    50   ~ 0
+PS_RLY
+Text Label 4250 1500 2    50   ~ 0
 SB_RLY
 Wire Wire Line
 	10500 4400 10350 4400
@@ -1141,45 +1141,10 @@ SB_CMD
 Text Label 5350 2100 0    50   ~ 0
 PS_CMD
 NoConn ~ 4250 1000
-NoConn ~ 4250 1500
+Text Label 4250 2000 2    50   ~ 0
+SPEED
 Wire Wire Line
-	1850 1100 2800 1100
-Text Label 2800 1100 0    50   ~ 0
-ANALOG
-Text Label 4250 1700 2    50   ~ 0
-ANALOG
-Text Label 4250 1800 2    50   ~ 0
-PS_ADC
-Text Label 4250 1900 2    50   ~ 0
-SB_ADC
-$Comp
-L Switch:SW_DIP_x02 SW1
-U 1 1 60956336
-P 1550 1100
-F 0 "SW1" H 1800 1250 50  0000 C CNN
-F 1 "MISC" H 1550 950 50  0000 C CNN
-F 2 "Package_DIP:DIP-4_W7.62mm" H 1550 1100 50  0001 C CNN
-F 3 "~" H 1550 1100 50  0001 C CNN
-	1    1550 1100
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	1250 1100 1250 1500
-$Comp
-L Switch:SW_DIP_x02 SW2
-U 1 1 60961387
-P 1550 1600
-F 0 "SW2" H 1800 1750 50  0000 C CNN
-F 1 "MODE" H 1550 1450 50  0000 C CNN
-F 2 "Package_DIP:DIP-4_W7.62mm" H 1550 1600 50  0001 C CNN
-F 3 "~" H 1550 1600 50  0001 C CNN
-	1    1550 1600
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	1250 1600 1250 2000
-Wire Wire Line
-	1850 1600 2800 1600
+	1850 1500 2800 1500
 $Comp
 L Connector:Screw_Terminal_01x04 J3
 U 1 1 60A2D598
@@ -1200,7 +1165,7 @@ Wire Notes Line
 Wire Notes Line
 	7450 3000 7450 2200
 Text Notes 7450 2200 0    50   ~ 10
-THRUSTER CONTROL INPUTS
+THRUSTER ANALOG INPUTS
 $Comp
 L power:+5V #PWR014
 U 1 1 60A45FA3
@@ -1223,23 +1188,10 @@ F 3 "" H 7900 2700 50  0001 C CNN
 	1    7900 2700
 	0    -1   -1   0   
 $EndComp
-Text Label 8250 2600 0    50   ~ 0
-PS_ADC
 Text Label 8250 2500 0    50   ~ 0
-SB_ADC
+SPEED
 Wire Wire Line
 	7900 2500 8250 2500
-Wire Wire Line
-	7900 2600 8250 2600
-Wire Wire Line
-	1250 1600 1250 1500
-Connection ~ 1250 1600
-Connection ~ 1250 1500
-Wire Wire Line
-	1250 1100 1250 1000
-Connection ~ 1250 1100
-Connection ~ 1250 1000
-NoConn ~ 4250 2000
 Wire Wire Line
 	2400 6100 2400 6200
 Wire Wire Line
@@ -1315,4 +1267,52 @@ Wire Notes Line
 	6950 3300 6950 6500
 Wire Notes Line
 	6950 500  6950 3250
+NoConn ~ 4250 1700
+NoConn ~ 4250 1800
+Wire Wire Line
+	7900 2600 8250 2600
+Text Label 8250 2600 0    50   ~ 0
+AZIMUTH
+$Comp
+L Switch:SW_DIP_x03 SW2
+U 1 1 609E9B80
+P 1550 1600
+F 0 "SW2" H 1800 1850 50  0000 C CNN
+F 1 "MODE" H 1550 1450 50  0000 C CNN
+F 2 "Package_DIP:DIP-6_W7.62mm" H 1550 1600 50  0001 C CNN
+F 3 "~" H 1550 1600 50  0001 C CNN
+	1    1550 1600
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	1250 1600 1250 2000
+Wire Wire Line
+	1850 1600 2800 1600
+Text Label 2800 1600 0    50   ~ 0
+MODE_ADDR_2
+Wire Wire Line
+	1250 1600 1250 1500
+Connection ~ 1250 1600
+Wire Wire Line
+	1250 1500 1250 1400
+Connection ~ 1250 1500
+Connection ~ 1250 1400
+Wire Wire Line
+	1250 1000 1250 1400
+$Comp
+L Switch:SW_DIP_x01 SW1
+U 1 1 60A18444
+P 1550 1000
+F 0 "SW1" H 1800 1050 50  0000 C CNN
+F 1 "SCR" H 1550 850 50  0000 C CNN
+F 2 "Button_Switch_THT:SW_DIP_SPSTx01_Slide_6.7x4.1mm_W7.62mm_P2.54mm_LowProfile" H 1550 1000 50  0001 C CNN
+F 3 "~" H 1550 1000 50  0001 C CNN
+	1    1550 1000
+	1    0    0    -1  
+$EndComp
+Connection ~ 1250 1000
+Text Label 4250 1100 2    50   ~ 0
+MODE_ADDR_2
+Text Label 4250 1900 2    50   ~ 0
+AZIMUTH
 $EndSCHEMATC

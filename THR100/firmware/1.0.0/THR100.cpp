@@ -21,6 +21,7 @@
  */
 
 #include <Arduino.h>
+#include <ADC.h>
 #include <EEPROM.h>
 #include <NMEA2000_CAN.h>
 #include <N2kTypes.h>
@@ -69,22 +70,25 @@
 #define GPIO_SB_COMMAND 0
 #define GPIO_PS_COMMAND 1
 #define GPIO_POWER_LED 2
-#define GPIO_ENCODER_BIT7 5
-#define GPIO_ENCODER_BIT6 6
-#define GPIO_ENCODER_BIT5 7
-#define GPIO_ENCODER_BIT4 8
-#define GPIO_ENCODER_BIT3 9
-#define GPIO_ENCODER_BIT2 10
-#define GPIO_ENCODER_BIT1 11
-#define GPIO_ENCODER_BIT0 12
+#define GPIO_ADDRESS_ENCODER_BIT7 5
+#define GPIO_ADDRESS_ENCODER_BIT6 6
+#define GPIO_ADDRESS_ENCODER_BIT5 7
+#define GPIO_ADDRESS_ENCODER_BIT4 8
+#define GPIO_ADDRESS_ENCODER_BIT3 9
+#define GPIO_ADDRESS_ENCODER_BIT2 10
+#define GPIO_ADDRESS_ENCODER_BIT1 11
+#define GPIO_ADDRESS_ENCODER_BIT0 12
 #define GPIO_BOARD_LED 13
-#define GPIO_MODE_SEL 14
-#define GPIO_COMMON 15
-#define GPIO_PS_RLY 16
-#define GPIO_SB_RLY 17
-
-#define GPIO_ENCODER_PINS { GPIO_ENCODER_BIT0, GPIO_ENCODER_BIT1, GPIO_ENCODER_BIT2, GPIO_ENCODER_BIT3, GPIO_ENCODER_BIT4, GPIO_ENCODER_BIT5, GPIO_ENCODER_BIT6, GPIO_ENCODER_BIT7 }
-#define GPIO_INPUT_PINS { GPIO_SB_COMMAND, GPIO_PS_COMMAND, GPIO_ENCODER_BIT0, GPIO_ENCODER_BIT1, GPIO_ENCODER_BIT2, GPIO_ENCODER_BIT3, GPIO_ENCODER_BIT4, GPIO_ENCODER_BIT5, GPIO_ENCODER_BIT6, GPIO_ENCODER_BIT7, GPIO_MODE_SEL, GPIO_COMMON }
+#define GPIO_MODE_ENCODER_BIT2 14
+#define GPIO_MODE_ENCODER_BIT1 15
+#define GPIO_MODE_ENCODER_BIT0 16
+#define GPIO_PS_RLY 17
+#define GPIO_SB_RLY 18
+#define GPIO_ANALOG_SPEED A8
+#define GPIO_ANALOG_AZIMUTH A9
+#define GPIO_ADDRESS_ENCODER_PINS { GPIO_ADDRESS_ENCODER_BIT0, GPIO_ADDRESS_ENCODER_BIT1, GPIO_ADDRESS_ENCODER_BIT2, GPIO_ADDRESS_ENCODER_BIT3, GPIO_ADDRESS_ENCODER_BIT4, GPIO_ADDRESS_ENCODER_BIT5, GPIO_ADDRESS_ENCODER_BIT6, GPIO_ADDRESS_ENCODER_BIT7 }
+#define GPIO_MODE_ENCODER_PINS { GPIO_MODE_ENCODER_BIT0, GPIO_MODE_ENCODER_BIT1, GPIO_MODE_ENCODER_BIT2 }
+#define GPIO_INPUT_PINS { GPIO_SB_COMMAND, GPIO_PS_COMMAND, GPIO_ADDRESS_ENCODER_BIT0, GPIO_ADDRESS_ENCODER_BIT1, GPIO_ADDRESS_ENCODER_BIT2, GPIO_ADDRESS_ENCODER_BIT3, GPIO_ADDRESS_ENCODER_BIT4, GPIO_ADDRESS_ENCODER_BIT5, GPIO_ADDRESS_ENCODER_BIT6, GPIO_ADDRESS_ENCODER_BIT7, GPIO_MODE_ENCODER_BIT0, GPIO_MODE_ENCODER_BIT1, GPIO_MODE_ENCODER_BIT2 }
 #define GPIO_OUTPUT_PINS { GPIO_POWER_LED, GPIO_BOARD_LED, GPIO_PS_RLY, GPIO_SB_RLY }
 
 /**********************************************************************
@@ -131,17 +135,16 @@
 /**********************************************************************
  * THRUSTER PROGRAMMED DEFAULTS - these will differ for each target
  * installation and should be set in external configuration.
- *
- * #define THRUSTER_SPEED_CONTROL 100
- * #define THRUSTER_AZIMUTH_CONTROL 0.0
- * #define THRUSTER_MOTOR_TYPE 4
- * #define THRUSTER_MOTOR_CURRENT 0
- * #define THRUSTER_MOTOR_TEMPERATURE 273
- * #define THRUSTER_MOTOR_POWER_RATING 8000
- * #define THRUSTER_MAXIMUM_MOTOR_TEMPERATURE_RATING 373.0
- * #define THRUSTER_MAXIMUM_ROTATIONAL_SPEED 2000
  */
-
+ #define THRUSTER_SPEED_CONTROL 100
+ #define THRUSTER_AZIMUTH_CONTROL 0.0
+ #define THRUSTER_MOTOR_TYPE 4
+ #define THRUSTER_MOTOR_CURRENT 0
+ #define THRUSTER_MOTOR_TEMPERATURE 273
+ #define THRUSTER_MOTOR_POWER_RATING 8000
+ #define THRUSTER_MAXIMUM_MOTOR_TEMPERATURE_RATING 373.0
+ #define THRUSTER_MAXIMUM_ROTATIONAL_SPEED 2000
+ 
 /**********************************************************************
  * Include the build.h header file which can be used to override any or
  * all of the above  constant definitions.
@@ -202,16 +205,27 @@ typedef struct { unsigned long PGN; void (*Handler)(const tN2kMsg &N2kMsg); } tN
 tNMEA2000Handler NMEA2000Handlers[] = { { 128006UL, &PGN128006Handler } };
 
 /**********************************************************************
- * DIL_SWITCH switch decoder.
+ * ADDRESS_SWITCH switch decoder.
  */
-int ENCODER_PINS[] = GPIO_ENCODER_PINS;
-DilSwitch DIL_SWITCH (ENCODER_PINS, ELEMENTCOUNT(ENCODER_PINS));
+int ADDRESS_ENCODER_PINS[] = GPIO_ADDRESS_ENCODER_PINS;
+DilSwitch ADDRESS_SWITCH (ADDRESS_ENCODER_PINS, ELEMENTCOUNT(ADDRESS_ENCODER_PINS));
+
+/**********************************************************************
+ * MODE_SWITCH switch decoder.
+ */
+int MODE_ENCODER_PINS[] = GPIO_MODE_ENCODER_PINS;
+DilSwitch MODE_SWITCH (MODE_ENCODER_PINS, ELEMENTCOUNT(MODE_ENCODER_PINS));
 
 /**********************************************************************
  * DEBOUNCER for the programme switch.
  */
 int SWITCHES[DEBOUNCER_SIZE] = { GPIO_PS_COMMAND, GPIO_SB_COMMAND, -1, -1, -1, -1, -1, -1 };
 Debouncer DEBOUNCER (SWITCHES);
+
+/**********************************************************************
+ * ADC converter service.
+ */
+ADC *adc = new ADC();
 
 /**********************************************************************
  * LED_MANAGER for all system LEDs.
@@ -221,7 +235,9 @@ LedManager LED_MANAGER (LED_MANAGER_HEARTBEAT, LED_MANAGER_INTERVAL);
 unsigned char THRUSTER_SOURCE_ADDRESS = BROADCAST_SOURCE_ADDRESS;
 unsigned long THRUSTER_SOURCE_ADDRESS_UPDATE_TIMESTAMP = 0UL;
 enum { SWITCH_INTERFACE, RELAY_INTERFACE } OPERATING_MODE = SWITCH_INTERFACE;
-unsigned int COMMON_MODE = 0;
+unsigned int ANALOG_SPEED = 0;
+unsigned int ANALOG_AZIMUTH = 0;
+unsigned int COMMON_OUTPUTS = 0;
 
 unsigned long COMMAND_UPDATE_INTERVAL = DEFAULT_COMMAND_UPDATE_INTERVAL;
 unsigned long PGN128006_UPDATE_INTERVAL = PGN128006_StaticUpdateInterval;
@@ -266,13 +282,19 @@ void setup() {
 
   // Get PCB switch settings //////////////////////////////////////////
   //
-  DIL_SWITCH.sample();
-  PGN128006v.setThrusterIdentifier(DIL_SWITCH.value());
-  PGN128007v.setThrusterIdentifier(DIL_SWITCH.value());
+  ADDRESS_SWITCH.sample();
+  PGN128006v.setThrusterIdentifier(ADDRESS_SWITCH.value());
+  PGN128007v.setThrusterIdentifier(ADDRESS_SWITCH.value());
+  PGN128008v.setThrusterIdentifier(ADDRESS_SWITCH.value());
 
-  //PGN128006_F02_THRUSTER_IDENTIFIER = PGN128007_F01_THRUSTER_IDENTIFIER = PGN128008_F02_THRUSTER_IDENTIFIER = DIL_SWITCH.value();
-  OPERATING_MODE = digitalRead(GPIO_MODE_SEL)?SWITCH_INTERFACE:RELAY_INTERFACE;
-  COMMON_MODE = digitalRead(GPIO_COMMON);
+  MODE_SWITCH.sample();
+  OPERATING_MODE = ((ADDRESS_SWITCH.value() > 2) & 0x01)?SWITCH_INTERFACE:RELAY_INTERFACE;
+  if (OPERATING_MODE == SWITCH_INTERFACE) {
+    ANALOG_SPEED = ((ADDRESS_SWITCH.value() > 1) & 0x01);
+    ANALOG_AZIMUTH = (ADDRESS_SWITCH.value() & 0x01);
+  } else {
+    COMMON_OUTPUTS = (ADDRESS_SWITCH.value() & 0x01);
+  }
 
   // Initialise all the LEDs //////////////////////////////////////////
   //
@@ -313,7 +335,7 @@ void loop() {
     #ifdef DEBUG_SERIAL
     Serial.print("Starting (N2K Source address: "); Serial.print(NMEA2000.GetN2kSource()); Serial.println(")");
     Serial.print("Operating mode: "); Serial.println(OPERATING_MODE?"OPERATE":"CONTROL");
-    Serial.print("Common mode: "); Serial.println(COMMON_MODE?"OFF":"ON");
+    Serial.print("Common mode: "); Serial.println(COMMON_OUTPUTS?"OFF":"ON");
     Serial.print("Thruster ID: "); Serial.println(PGN128006v.getThrusterIdentifier());
     #endif
     JUST_STARTED = false;
@@ -338,12 +360,12 @@ void loop() {
           break;
         case N2kDD473_ThrusterToPORT:
           digitalWrite(GPIO_PS_RLY, 1);
-          digitalWrite(GPIO_SB_RLY, (COMMON_MODE?1:0));
+          digitalWrite(GPIO_SB_RLY, (COMMON_OUTPUTS?1:0));
           checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
           if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
           break;
         case N2kDD473_ThrusterToSTARBOARD:
-          digitalWrite(GPIO_PS_RLY, (COMMON_MODE?1:0));
+          digitalWrite(GPIO_PS_RLY, (COMMON_OUTPUTS?1:0));
           digitalWrite(GPIO_SB_RLY, 1);
           checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
           if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
@@ -390,6 +412,18 @@ void processSwitchInputs() {
   unsigned long now = millis();
 
   if ((COMMAND_UPDATE_INTERVAL != 0UL) && (now > deadline)) {
+    if (!ANALOG_SPEED) {
+      int value = adc->analogRead(GPIO_ANALOG_SPEED);
+      if (value != ADC_ERROR_VALUE) {
+        PGN128006v.setSpeedControl((uint8_t) ((value / adc->adc0->getMaxValue()) * 100));
+      }
+    }
+    if (!ANALOG_AZIMUTH) {
+      int value = adc->analogRead(GPIO_ANALOG_AZIMUTH);
+      if (value != ADC_ERROR_VALUE) {
+        PGN128006v.setAzimuthControl((value / adc->adc0->getMaxValue()) * 100);
+      }
+    }
     if (!DEBOUNCER.channelState(GPIO_PS_COMMAND) && DEBOUNCER.channelState(GPIO_SB_COMMAND)) {
       #ifdef DEBUG_SERIAL
       Serial.println("PORT switch pressed");
@@ -426,11 +460,15 @@ void transmitDirectionControl() {
     N2kMsg.AddByte(0x01);                   // This is a command message
     N2kMsg.Add3ByteInt(128006UL);           // Thruster Control Status PGN
     N2kMsg.AddByte(0xF8);                   // Retain existing priority
-    N2kMsg.AddByte(0x02);                   // Two parameter pairs follow
+    N2kMsg.AddByte(0x04);                   // Four parameter pairs follow
     N2kMsg.AddByte(0x02);                   // Parameter 1 - Field 2 (Thruster Identifier)
-    N2kMsg.AddByte(PGN128006v.getThrusterIdentifier());    // 
+    N2kMsg.AddByte(PGN128006v.getThrusterIdentifier()); 
     N2kMsg.AddByte(0x03);                   // Parameter 2 - Field 3 (Thruster Direction Control)
-    N2kMsg.AddByte(PGN128006v.getThrusterDirectionControl());              //
+    N2kMsg.AddByte(PGN128006v.getThrusterDirectionControl());
+    N2kMsg.AddByte(0x06);                   // Parameter 3 - Field 6 (Speed Control)
+    N2kMsg.AddByte(PGN128006v.getSpeedControl());
+    N2kMsg.AddByte(0x09);                   // Parameter 4 - Field 9 (Azimuth Control)
+    N2kMsg.Add2ByteDouble(PGN128006v.getAzimuthControl(), 0.0001);
     NMEA2000.SendMsg(N2kMsg);
     LED_MANAGER.operate(GPIO_POWER_LED, 1, 1);
   }
