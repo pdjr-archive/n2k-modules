@@ -67,29 +67,32 @@
  * GPIO pin definitions for the Teensy 3.2 MCU
  */
 
-#define GPIO_SB_COMMAND 0
-#define GPIO_PS_COMMAND 1
-#define GPIO_POWER_LED 2
-#define GPIO_ADDRESS_ENCODER_BIT7 5
-#define GPIO_ADDRESS_ENCODER_BIT6 6
-#define GPIO_ADDRESS_ENCODER_BIT5 7
-#define GPIO_ADDRESS_ENCODER_BIT4 8
-#define GPIO_ADDRESS_ENCODER_BIT3 9
-#define GPIO_ADDRESS_ENCODER_BIT2 10
-#define GPIO_ADDRESS_ENCODER_BIT1 11
-#define GPIO_ADDRESS_ENCODER_BIT0 12
+#define GPIO_STARBOARD_SWITCH 0
+#define GPIO_PORT_SWITCH 1
+#define GPIO_PORT_RELAY 2
+#define GPIO_RETRACT_SWITCH 5
+#define GPIO_POWER_SWITCH 6
+#define GPIO_INSTANCE_BIT2_SWITCH 7
+#define GPIO_INSTANCE_BIT1_SWITCH 8
+#define GPIO_INSTANCE_BIT0_SWITCH 9
+#define GPIO_MODE_BIT2_SWITCH 10
+#define GPIO_MODE_BIT1_SWITCH 11
+#define GPIO_MODE_BIT0_SWITCH 12
 #define GPIO_BOARD_LED 13
-#define GPIO_MODE_ENCODER_BIT2 14
-#define GPIO_MODE_ENCODER_BIT1 15
-#define GPIO_MODE_ENCODER_BIT0 16
-#define GPIO_PS_RLY 17
-#define GPIO_SB_RLY 18
-#define GPIO_ANALOG_SPEED A8
-#define GPIO_ANALOG_AZIMUTH A9
-#define GPIO_ADDRESS_ENCODER_PINS { GPIO_ADDRESS_ENCODER_BIT0, GPIO_ADDRESS_ENCODER_BIT1, GPIO_ADDRESS_ENCODER_BIT2, GPIO_ADDRESS_ENCODER_BIT3, GPIO_ADDRESS_ENCODER_BIT4, GPIO_ADDRESS_ENCODER_BIT5, GPIO_ADDRESS_ENCODER_BIT6, GPIO_ADDRESS_ENCODER_BIT7 }
-#define GPIO_MODE_ENCODER_PINS { GPIO_MODE_ENCODER_BIT0, GPIO_MODE_ENCODER_BIT1, GPIO_MODE_ENCODER_BIT2 }
-#define GPIO_INPUT_PINS { GPIO_SB_COMMAND, GPIO_PS_COMMAND, GPIO_ADDRESS_ENCODER_BIT0, GPIO_ADDRESS_ENCODER_BIT1, GPIO_ADDRESS_ENCODER_BIT2, GPIO_ADDRESS_ENCODER_BIT3, GPIO_ADDRESS_ENCODER_BIT4, GPIO_ADDRESS_ENCODER_BIT5, GPIO_ADDRESS_ENCODER_BIT6, GPIO_ADDRESS_ENCODER_BIT7, GPIO_MODE_ENCODER_BIT0, GPIO_MODE_ENCODER_BIT1, GPIO_MODE_ENCODER_BIT2 }
-#define GPIO_OUTPUT_PINS { GPIO_POWER_LED, GPIO_BOARD_LED, GPIO_PS_RLY, GPIO_SB_RLY }
+#define GPIO_INSTANCE_BIT7_SWITCH 14
+#define GPIO_INSTANCE_BIT6_SWITCH 15
+#define GPIO_INSTANCE_BIT5_SWITCH 16
+#define GPIO_INSTANCE_BIT4_SWITCH 17
+#define GPIO_INSTANCE_BIT3_SWITCH 18
+#define GPIO_SPEED_ANALOG_IN A5
+#define GPIO_AZIMUTH_ANALOG_IN A6
+#define GPIO_TEMPERATURE_ANALOG_IN A7
+#define GPIO_POWER_LED 22
+#define GPIO_STARBOARD_RELAY 23
+#define GPIO_ADDRESS_PINS { GPIO_INSTANCE_BIT0_SWITCH, GPIO_INSTANCE_BIT1_SWITCH, GPIO_INSTANCE_BIT2_SWITCH, GPIO_INSTANCE_BIT3_SWITCH, GPIO_INSTANCE_BIT4_SWITCH, GPIO_INSTANCE_BIT5_SWITCH, GPIO_INSTANCE_BIT6_SWITCH, GPIO_INSTANCE_BIT7_SWITCH }
+#define GPIO_MODE_PINS { GPIO_MODE_BIT0_SWITCH, GPIO_MODE_BIT1_SWITCH, GPIO_MODE_BIT2_SWITCH }
+#define GPIO_INPUT_PINS { GPIO_STARBOARD_SWITCH, GPIO_PORT_SWITCH, GPIO_RETRACT_SWITCH, GPIO_POWER_SWITCH, GPIO_INSTANCE_BIT2_SWITCH, GPIO_INSTANCE_BIT1_SWITCH, GPIO_INSTANCE_BIT0_SWITCH, GPIO_MODE_BIT2_SWITCH, GPIO_MODE_BIT1_SWITCH, GPIO_MODE_BIT0_SWITCH, GPIO_INSTANCE_BIT7_SWITCH, GPIO_INSTANCE_BIT6_SWITCH, GPIO_INSTANCE_BIT5_SWITCH, GPIO_INSTANCE_BIT4_SWITCH, GPIO_INSTANCE_BIT3_SWITCH }
+#define GPIO_OUTPUT_PINS { GPIO_PORT_RELAY, GPIO_BOARD_LED, GPIO_POWER_LED, GPIO_STARBOARD_RELAY,  }
 
 /**********************************************************************
  * DEVICE INFORMATION
@@ -207,19 +210,19 @@ tNMEA2000Handler NMEA2000Handlers[] = { { 128006UL, &PGN128006Handler } };
 /**********************************************************************
  * ADDRESS_SWITCH switch decoder.
  */
-int ADDRESS_ENCODER_PINS[] = GPIO_ADDRESS_ENCODER_PINS;
+int ADDRESS_ENCODER_PINS[] = GPIO_ADDRESS_PINS;
 DilSwitch ADDRESS_SWITCH (ADDRESS_ENCODER_PINS, ELEMENTCOUNT(ADDRESS_ENCODER_PINS));
 
 /**********************************************************************
  * MODE_SWITCH switch decoder.
  */
-int MODE_ENCODER_PINS[] = GPIO_MODE_ENCODER_PINS;
+int MODE_ENCODER_PINS[] = GPIO_MODE_PINS;
 DilSwitch MODE_SWITCH (MODE_ENCODER_PINS, ELEMENTCOUNT(MODE_ENCODER_PINS));
 
 /**********************************************************************
  * DEBOUNCER for the programme switch.
  */
-int SWITCHES[DEBOUNCER_SIZE] = { GPIO_PS_COMMAND, GPIO_SB_COMMAND, -1, -1, -1, -1, -1, -1 };
+int SWITCHES[DEBOUNCER_SIZE] = { GPIO_PORT_SWITCH, GPIO_STARBOARD_SWITCH, -1, -1, -1, -1, -1, -1 };
 Debouncer DEBOUNCER (SWITCHES);
 
 /**********************************************************************
@@ -355,18 +358,18 @@ void loop() {
       switch (PGN128006v.getThrusterDirectionControl()) {
         case N2kDD473_OFF:
         case N2kDD473_ThrusterReady:
-          digitalWrite(GPIO_PS_RLY, 0);
-          digitalWrite(GPIO_SB_RLY, 0);
+          digitalWrite(GPIO_STARBOARD_RELAY, 0);
+          digitalWrite(GPIO_PORT_RELAY, 0);
           break;
         case N2kDD473_ThrusterToPORT:
-          digitalWrite(GPIO_PS_RLY, 1);
-          digitalWrite(GPIO_SB_RLY, (COMMON_OUTPUTS?1:0));
+          digitalWrite(GPIO_STARBOARD_RELAY, 1);
+          digitalWrite(GPIO_PORT_RELAY, (COMMON_OUTPUTS?1:0));
           checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
           if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
           break;
         case N2kDD473_ThrusterToSTARBOARD:
-          digitalWrite(GPIO_PS_RLY, (COMMON_OUTPUTS?1:0));
-          digitalWrite(GPIO_SB_RLY, 1);
+          digitalWrite(GPIO_STARBOARD_RELAY, (COMMON_OUTPUTS?1:0));
+          digitalWrite(GPIO_PORT_RELAY, 1);
           checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
           if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
           break;
@@ -413,25 +416,25 @@ void processSwitchInputs() {
 
   if ((COMMAND_UPDATE_INTERVAL != 0UL) && (now > deadline)) {
     if (!ANALOG_SPEED) {
-      int value = adc->analogRead(GPIO_ANALOG_SPEED);
+      int value = adc->analogRead(GPIO_SPEED_ANALOG_IN);
       if (value != ADC_ERROR_VALUE) {
         PGN128006v.setSpeedControl((uint8_t) ((value / adc->adc0->getMaxValue()) * 100));
       }
     }
     if (!ANALOG_AZIMUTH) {
-      int value = adc->analogRead(GPIO_ANALOG_AZIMUTH);
+      int value = adc->analogRead(GPIO_AZIMUTH_ANALOG_IN);
       if (value != ADC_ERROR_VALUE) {
         PGN128006v.setAzimuthControl((value / adc->adc0->getMaxValue()) * 100);
       }
     }
-    if (!DEBOUNCER.channelState(GPIO_PS_COMMAND) && DEBOUNCER.channelState(GPIO_SB_COMMAND)) {
+    if (!DEBOUNCER.channelState(GPIO_PORT_SWITCH) && DEBOUNCER.channelState(GPIO_STARBOARD_SWITCH)) {
       #ifdef DEBUG_SERIAL
       Serial.println("PORT switch pressed");
       #endif
       PGN128006v.setThrusterDirectionControl(N2kDD473_ThrusterToPORT);
       transmitDirectionControl();
     }
-    if (!DEBOUNCER.channelState(GPIO_SB_COMMAND) && DEBOUNCER.channelState(GPIO_PS_COMMAND)) {
+    if (!DEBOUNCER.channelState(GPIO_STARBOARD_SWITCH) && DEBOUNCER.channelState(GPIO_PORT_SWITCH)) {
       #ifdef DEBUG_SERIAL
       Serial.println("STARBOARD switch pressed");
       #endif
