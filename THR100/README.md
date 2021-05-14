@@ -1,30 +1,39 @@
 # THR100 Thruster Module
 
 The __THR100 Thruster Module__ is an NMEA 2000 module which can act
-as either a thruster control interface or a thruster operating
-interface dependant upon the state of a PCB configuration switch.
+as either a thruster switch interface or a thruster relay interface
+dependant upon the state of a PCB configuration switch.
 
-__THR100__ modules communicate using the NMEA Thruster Network Messages
-protocol described in this
-[Technical Bulletin](https://www.nmea.org/Assets/20190613%20thruster%20amendment%20128006,%20128007,%20128008.pdf).
+## THR100 acting as a switch interface
 
+When acting as a switch interface the __THR100__ module supports
+connection of the following inputs.
 
-In control mode a __THR100__ module supports the connection of SPST
-switches and an optional potentiometric inputs making the module
-suitable for both binary (i.e. ON/OFF) and proportional thruster
-control, typically through connection of an appropriate joystick
-device.
-The address of the remote thruster is configured by a DIP switch
-on the module PCB.
+| STARBOARD | Direction control | SPST momentary | Required |
+| PORT      | Direction control | SPST momentary | Required |
+| POWER     | Thruster enable   | SPST           | Optional |
+| RETRACT   | Retract thruster  | SPST           | Optional |
+| SPEED     | Speed (0-100%)    | Potentiometer  | Optional |
+| AZIMUTH   | Angle             | Potentiometer  | Optional |
 
-In operating mode a __THR100__ listens on the NMEA 2000 bus for
-thruster control messages and responds by operating either PORT or
-STARBOARD relays dependent upon received commands.
+Optional inputs are enabled by PCB DIP switch.
+
+The address of the thruster being controlled by the __THR100__ is also
+set by PCB DIP switch.
+
+## THR100 acting as a relay interface
+
+When acting as a relay interface the __THR100__ module listens on the
+NMEA 2000 bus for a PGN ?????? Group Update Control message using
+PGN128006 Thruster Control Status which addresses the thruster
+identifier set by the PCB DIL switch.
+
+At the present time the module will only react to commands for
+direction control and responds by operating either PS or SB relays
+dependent upon received commands.
 For continuous operation of a relay a continuous stream of control
 messages must be received: if the control stream dries up, then
 relay ouputs are switched off.
-At the present time the __THR100__ does not provide a proportional
-control output.
 
 To cater for the needs of some hydraulic systems which require
 operation of a load-sense valve when there is a call for any
@@ -32,6 +41,10 @@ thruster operation, a __THR100__ in operating mode can be set to
 operate both its output relays whenever it receives an operating
 command of any sort allowing eithr the PORT or STARBOARD relay to
 be used to operate load-sense.
+
+__THR100__ modules communicate using the NMEA Thruster Network Messages
+protocol described in this
+[Technical Bulletin](https://www.nmea.org/Assets/20190613%20thruster%20amendment%20128006,%20128007,%20128008.pdf).
 
 A simple installation controlling a single electrical thruster from
 one helm location will require two __THR100__ modules: one installed
