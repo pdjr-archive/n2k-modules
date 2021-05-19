@@ -51,54 +51,59 @@
 /**********************************************************************
  * MCU EEPROM (PERSISTENT) STORAGE
  * 
- * SOURCE_ADDRESS_EEPROM_ADDRESS: storage address for the device's
- * 1-byte N2K source address.
- * SENSORS_EEPROM_ADDRESS: storage address for SENSOR congigurations.
- * The length of this is variable, so make sure it remains as the last
+ * EEPROM_CONFIGURED_OPERATING_MODE. We save the last configured
+ * operating mode so that we can tell (i) if the module has been
+ * configured at all and (ii) if the module operating mode has been
+ * changed by moving the hardware switch. Relevant to both module
+ * operating modes.
+ * 
+ * EEPROM_SOURCE_ADDRESS. The CAN bus negotiates a storage address
+ * each device and expects a device to re-use a previously negotiated
+ * address if possible, so here is some storage for it. Relevant to
+ * both module operating modes.
+ * 
+ * EEPROM_PGN128007. PGN128007 properties describe the static physical
+ * and operating characteristics of a thruster. We configure this when
+ * we build the module firmware and save this here. Applies only to a
+ * module in relay mode.
+ * 
+ * EEPROM_PGN128008. PGN128008 properties describe dynamic properties
+ * of a thruster. Of these, only motor run time needs to be persisted,
+ * but it is convenient just to save and restore the whole PGN.
  * item.
  */
 
-#define SOURCE_ADDRESS_EEPROM_ADDRESS 0
-#define TOTAL_MOTOR_OPERATING_TIME_EEPROM_ADDRESS 1
+#define EEPROM_CONFIGURED_OPERATING_MODE 0x00 // 1 byte
+#define EEPROM_SOURCE_ADDRESS 0x10 // 1 byte
+#define EEPROM_PGN128007 0x20 // ? bytes
+#define EEPROM_PGN128008 0x30 // ? bytes
 
 /**********************************************************************
  * MCU PIN DEFINITIONS
  * 
  * GPIO pin definitions for the Teensy 3.2 MCU
  */
-
-#define GPIO_STARBOARD_SWITCH 0
-#define GPIO_PORT_SWITCH 1
-#define GPIO_PORT_RELAY 2
-#define GPIO_RETRACT_SWITCH 5
-#define GPIO_POWER_SWITCH 6
-#define GPIO_INSTANCE_BIT1_SWITCH 7
-#define GPIO_INSTANCE_BIT0_SWITCH 8
-#define GPIO_MODE_BIT3_SWITCH 9
-#define GPIO_MODE_BIT2_SWITCH 10
-#define GPIO_MODE_BIT1_SWITCH 11
-#define GPIO_MODE_BIT0_SWITCH 12
-#define GPIO_BOARD_LED 13
-#define GPIO_INSTANCE_BIT7_SWITCH 14
-#define GPIO_INSTANCE_BIT6_SWITCH 15
-#define GPIO_INSTANCE_BIT5_SWITCH 16
-#define GPIO_INSTANCE_BIT4_SWITCH 17
-#define GPIO_INSTANCE_BIT3_SWITCH 18
-#define GPIO_INSTANCE_BIT2_SWITCH 19
-#define GPIO_SPEED_ANALOG_IN A6
-#define GPIO_AZIMUTH_ANALOG_IN A7
-#define GPIO_POWER_LED 22
-#define GPIO_STARBOARD_RELAY 23
-#define GPIO_ADDRESS_PINS { GPIO_INSTANCE_BIT0_SWITCH, GPIO_INSTANCE_BIT1_SWITCH, GPIO_INSTANCE_BIT2_SWITCH, GPIO_INSTANCE_BIT3_SWITCH, GPIO_INSTANCE_BIT4_SWITCH, GPIO_INSTANCE_BIT5_SWITCH, GPIO_INSTANCE_BIT6_SWITCH, GPIO_INSTANCE_BIT7_SWITCH }
-#define GPIO_MODE_PINS { GPIO_MODE_BIT0_SWITCH, GPIO_MODE_BIT1_SWITCH, GPIO_MODE_BIT2_SWITCH }
-#define GPIO_INPUT_PINS { GPIO_STARBOARD_SWITCH, GPIO_PORT_SWITCH, GPIO_RETRACT_SWITCH, GPIO_POWER_SWITCH, GPIO_INSTANCE_BIT2_SWITCH, GPIO_INSTANCE_BIT1_SWITCH, GPIO_INSTANCE_BIT0_SWITCH, GPIO_MODE_BIT2_SWITCH, GPIO_MODE_BIT1_SWITCH, GPIO_MODE_BIT0_SWITCH, GPIO_INSTANCE_BIT7_SWITCH, GPIO_INSTANCE_BIT6_SWITCH, GPIO_INSTANCE_BIT5_SWITCH, GPIO_INSTANCE_BIT4_SWITCH, GPIO_INSTANCE_BIT3_SWITCH }
-#define GPIO_OUTPUT_PINS { GPIO_PORT_RELAY, GPIO_BOARD_LED, GPIO_POWER_LED, GPIO_STARBOARD_RELAY,  }
-
-#define GPIO_MODE_DEVICE GPIO_MODE_BIT3_SWITCH
-#define GPIO_MODE_POWER GPIO_MODE_BIT2_SWITCH
-#define GPIO_MODE_RETRACT GPIO_MODE_BIT1_SWITCH
-#define GPIO_MODE_ANALOG GPIO_MODE_BIT0_SWITCH
-#define GPIO_MODE_COMMON GPIO_MODE_BIT2_SWITCH
+#include <SW6RL4.h>
+#define GPIO_DEVICE_MODE GPIO_MODE
+#define GPIO_INSTANCE_BIT0_SWITCH GPIO_ADDR_0
+#define GPIO_INSTANCE_BIT1_SWITCH GPIO_ADDR_1
+#define GPIO_INSTANCE_BIT2_SWITCH GPIO_ADDR_2
+#define GPIO_INSTANCE_BIT3_SWITCH GPIO_ADDR_3
+#define GPIO_INSTANCE_BIT4_SWITCH GPIO_ADDR_4
+#define GPIO_INSTANCE_BIT5_SWITCH GPIO_ADDR_5
+#define GPIO_INSTANCE_BIT6_SWITCH GPIO_ADDR_6
+#define GPIO_INSTANCE_BIT7_SWITCH GPIO_ADDR_7
+#define GPIO_STARBOARD_SWITCH GPIO_SWITCH_1
+#define GPIO_PORT_SWITCH GPIO_SWITCH_2
+#define GPIO_RETRACT_SWITCH GPIO_SWITCH_3
+#define GPIO_POWER_SWITCH GPIO_SWITCH_4
+#define GPIO_SPEED_ANALOG_IN GPIO_ANALOG_1
+#define GPIO_AZIMUTH_ANALOG_IN GPIO_ANALOG_2
+#define GPIO_TEMPERATURE_ANALOG GPIO_ANALOG_3
+#define GPIO_PORT_RELAY GPIO_RELAY_1
+#define GPIO_STARBOARD_RELAY GPIO_RELAY_2
+#define GPIO_BOARD_LED GPIO_LED_1
+#define GPIO_POWER_LED GPIO_LED_2
 
 /**********************************************************************
  * DEVICE INFORMATION
@@ -180,8 +185,8 @@
 #endif
 // CONTROL mode functions...
 void processSwitchInputs();
-void processAnalogInputs();
-void transmitDirectionControl();
+void processAnalogControlInputs();
+void transmitThrusterControl();
 void PGN128006Handler(const tN2kMsg &N2kMsg);
 void checkConnection();
 // OPERATING mode functions....
@@ -191,7 +196,7 @@ void transmitPGN128007(unsigned char SID);
 void transmitPGN128008(unsigned char SID);
 bool isOperating();
 bool checkTimeout(unsigned long timeout);
-void updatePGN128006(PGN128006_UpdateField fields[]);
+void updatePGN128006(PGN128006_Field fields[]);
 bool ISORequestHandler(unsigned long RequestedPGN, unsigned char Requester, int DeviceIndex);
 // Generic functions...
 void messageHandler(const tN2kMsg&);
@@ -238,19 +243,20 @@ LedManager LED_MANAGER (LED_MANAGER_HEARTBEAT, LED_MANAGER_INTERVAL);
 
 unsigned char THRUSTER_SOURCE_ADDRESS = BROADCAST_SOURCE_ADDRESS;
 unsigned long THRUSTER_SOURCE_ADDRESS_UPDATE_TIMESTAMP = 0UL;
-enum { SWITCH_INTERFACE, RELAY_INTERFACE } OPERATING_MODE = SWITCH_INTERFACE;
+enum OPERATING_MODE_TYPE { SWITCH_INTERFACE, RELAY_INTERFACE } SELECTED_OPERATING_MODE = SWITCH_INTERFACE;
 unsigned int POWER_MODE = 0;
 unsigned int RETRACT_MODE = 0;
 unsigned int ANALOG_MODE = 0;;
 unsigned int COMMON_MODE = 0;
 
-unsigned long COMMAND_UPDATE_INTERVAL = DEFAULT_COMMAND_UPDATE_INTERVAL;
 unsigned long PGN128006_UPDATE_INTERVAL = PGN128006_StaticUpdateInterval;
 unsigned long PGN128007_UPDATE_INTERVAL = PGN128007_StaticUpdateInterval;
 unsigned long PGN128008_UPDATE_INTERVAL = PGN128008_StaticUpdateInterval;
 unsigned long THRUSTER_START_TIME = 0UL;
 
-// Thruster properties
+/**********************************************************************
+ * The following three PGNs represent the thruster state.
+ */
 PGN128006 PGN128006v = PGN128006();
 PGN128007 PGN128007v = PGN128007();
 PGN128008 PGN128008v = PGN128008();
@@ -265,43 +271,57 @@ void setup() {
   #endif
 
   // Set the mode of all digital GPIO pins.
-  int ipins[] = GPIO_INPUT_PINS;
-  int opins[] = GPIO_OUTPUT_PINS;
+  int ipins[] = GPIO_DIGITAL_INPUT_PINS;
+  int opins[] = GPIO_DIGITAL_OUTPUT_PINS;
   for (unsigned int i = 0 ; i < ELEMENTCOUNT(ipins); i++) pinMode(ipins[i], INPUT_PULLUP);
   for (unsigned int i = 0 ; i < ELEMENTCOUNT(opins); i++) pinMode(opins[i], OUTPUT);
 
-  // We assume that a new host system has its EEPROM initialised to all
-  // 0xFF. We test by reading a byte that in a configured system should
-  // never be this value and if it indicates a scratch system then we
-  // set EEPROM memory up in the following way.
-  //
-  // Address | Value                                    | Size in bytes
-  // --------+------------------------------------------+--------------
-  // 0x00    | N2K source address                       | 1
-  // 0x10    | Sensor configuration (the SENSORS array) | Lots
-  //
-  if (EEPROM.read(SOURCE_ADDRESS_EEPROM_ADDRESS) == 0xff) {
-    EEPROM.write(SOURCE_ADDRESS_EEPROM_ADDRESS, DEFAULT_SOURCE_ADDRESS);
-    EEPROM.write(TOTAL_MOTOR_OPERATING_TIME_EEPROM_ADDRESS, (uint16_t) DEFAULT_TOTAL_MOTOR_OPERATING_TIME);
+  // Get the user-selected operating mode and the mode that was last configured.
+  SELECTED_OPERATING_MODE = (!digitalRead(GPIO_DEVICE_MODE))?SWITCH_INTERFACE:RELAY_INTERFACE;
+  OPERATING_MODE_TYPE CONFIGURED_OPERATING_MODE = EEPROM.read(EEPROM_CONFIGURED_OPERATING_MODE);
+  
+  // Decide whether or not to initialise or re-configure the module to
+  // suit the selected operating mode.
+  switch (SELECTED_OPERATING_MODE) {
+    case SWITCH_INTERFACE:
+      if (CONFIGURED_OPERATING_MODE != SELECTED_OPERATING_MODE) {
+        // Previously we were a relay interface or just never configured.
+        EEPROM.write(EEPROM_CONFIGURED_OPERATING_MODE, SELECTED_OPERATING_MODE);
+        EEPROM.write(EEPROM_SOURCE_ADDRESS, DEFAULT_SOURCE_ADDRESS);
+      }
+      break;
+    case RELAY_INTERFACE:
+      if (CONFIGURED_OPERATING_MODE != SELECTED_OPERATING_MODE) {
+        // Previously we were a switch interface or just never configured.
+        EEPROM.put(EEPROM_CONFIGURED_OPERATING_MODE, SELECTED_OPERATING_MODE);
+        EEPROM.write(EEPROM_SOURCE_ADDRESS, DEFAULT_SOURCE_ADDRESS);
+        PGN128007v.setThrusterIdentifier(0);
+        PGN128007v.setThrusterMotorType(THRUSTER_MOTOR_TYPE);
+        PGN128007v.setMotorPowerRating(THRUSTER_MOTOR_POWER_RATING);
+        PGN128007v.setMaximumMotorTemperatureRating(THRUSTER_MAXIMUM_MOTOR_TEMPERATURE_RATING);
+        PGN128007v.setMaximumRotationalSpeed(THRUSTER_MAXIMUM_ROTATIONAL_SPEED);
+        EEPROM.put(EEPROM_PGN128007, PGN128007v);
+        PGN128008v.setTotalMotorOperatingTime(DEFAULT_TOTAL_MOTOR_OPERATING_TIME);
+        EEPROM.put(EEPROM_PGN128008, PGN128008v);
+      }
+      break;
   }
 
-  // Get PCB switch settings //////////////////////////////////////////
-  //
+  // Restore PGN128007 and PGN128008 from EEPROM and assign thruster
+  // identifier from DIP switch setting
+  EEPROM.get(EEPROM_PGN128007, PGN128007v);
+  EEPROM.get(EEPROM_PGN128008, PGN128008v);
   ADDRESS_SWITCH.sample();
   PGN128006v.setThrusterIdentifier(ADDRESS_SWITCH.value());
   PGN128007v.setThrusterIdentifier(ADDRESS_SWITCH.value());
   PGN128008v.setThrusterIdentifier(ADDRESS_SWITCH.value());
+  #ifdef DEBUG_SERIAL
+    PGN128007v.serialDump();
+  #endif
 
-  OPERATING_MODE = (!digitalRead(GPIO_MODE_DEVICE))?SWITCH_INTERFACE:RELAY_INTERFACE;
-  POWER_MODE = (!digitalRead(GPIO_MODE_POWER));
-  RETRACT_MODE = (!digitalRead(GPIO_MODE_RETRACT));
-  ANALOG_MODE = (!digitalRead(GPIO_MODE_ANALOG));
-  COMMON_MODE = (!digitalRead(GPIO_MODE_COMMON));
- 
   // Initialise all the LEDs //////////////////////////////////////////
-  //
   LED_MANAGER.operate(GPIO_BOARD_LED, 0, 3);
-  switch (OPERATING_MODE) {
+  switch (SELECTED_OPERATING_MODE) {
     case SWITCH_INTERFACE: LED_MANAGER.operate(GPIO_POWER_LED, 0, -10000); break;
     case RELAY_INTERFACE: LED_MANAGER.operate(GPIO_POWER_LED, 1); break;
   }
@@ -309,7 +329,7 @@ void setup() {
   // Initialise and start N2K services.
   NMEA2000.SetProductInformation(PRODUCT_SERIAL_CODE, PRODUCT_CODE, PRODUCT_TYPE, PRODUCT_FIRMWARE_VERSION, PRODUCT_VERSION);
   NMEA2000.SetDeviceInformation(DEVICE_UNIQUE_NUMBER, DEVICE_FUNCTION, DEVICE_CLASS, DEVICE_MANUFACTURER_CODE);
-  NMEA2000.SetMode(tNMEA2000::N2km_ListenAndNode, EEPROM.read(SOURCE_ADDRESS_EEPROM_ADDRESS)); // Configure for sending and receiving.
+  NMEA2000.SetMode(tNMEA2000::N2km_ListenAndNode, EEPROM.read(EEPROM_SOURCE_ADDRESS)); // Configure for sending and receiving.
   NMEA2000.EnableForward(false); // Disable all msg forwarding to USB (=Serial)
   NMEA2000.ExtendTransmitMessages(TransmitMessages); // Tell library which PGNs we transmit
   NMEA2000.SetISORqstHandler(&ISORequestHandler);
@@ -336,21 +356,29 @@ void loop() {
   if (JUST_STARTED && (millis() > STARTUP_SETTLE_PERIOD)) {
     #ifdef DEBUG_SERIAL
     Serial.print("Starting (N2K Source address: "); Serial.print(NMEA2000.GetN2kSource()); Serial.println(")");
-    Serial.print("Operating mode: "); Serial.println(OPERATING_MODE?"OPERATE":"CONTROL");
+    Serial.print("Operating mode: "); Serial.println(SELECTED_OPERATING_MODE?"OPERATE":"CONTROL");
     Serial.print("Common mode: "); Serial.println(COMMON_MODE?"ON":"OFF");
     Serial.print("Thruster ID: "); Serial.println(PGN128006v.getThrusterIdentifier());
     #endif
     JUST_STARTED = false;
   }
 
-  switch (OPERATING_MODE) {
+  switch (SELECTED_OPERATING_MODE) {
+
     case SWITCH_INTERFACE:
-      // Module is a CONTROL device. We debounce and process switch
-      // inputs, perhaps transmitting control messages dependent upon
-      // switch state. Finally, we check that the remote thruster is
+      // Module is a CONTROL device and therefore has switch inputs.
+      // which we debounce. If we have just started then we transmit
+      // the current (just initialised) status as an initialiser of the
+      // remote device, otherwise we process inputs to dynamically
+      // update the current status and transmit this to the remote.
+      // Finally, we continuously check that the remote thruster is
       // still alive.
       DEBOUNCER.debounce();
-      if (!JUST_STARTED) processSwitchInputs();
+      if (JUST_STARTED) {
+        transmitThrusterControl();
+      } else {
+        processSwitchInputs();
+      }
       checkConnection();
       break;
     case RELAY_INTERFACE: // Module is an OPERATING device
@@ -378,7 +406,7 @@ void loop() {
       if (checkTimeout(0UL)) {
         PGN128006v.setThrusterDirectionControl(N2kDD473_OFF);
         PGN128008v.bumpTotalMotorOperatingTime((unsigned long) (millis() - THRUSTER_START_TIME) / 1000);
-        EEPROM.write(TOTAL_MOTOR_OPERATING_TIME_EEPROM_ADDRESS, PGN128008v.getTotalMotorOperatingTime());
+        EEPROM.put(EEPROM_PGN128008, PGN128008v);
       }
       transmitStatus();
       break;
@@ -391,7 +419,7 @@ void loop() {
   // The above call may have resulted in acquisition of a new source
   // address, so we check if there has been a change and if so save the
   // new address to EEPROM for future re-use.
-  if (NMEA2000.ReadResetAddressChanged()) EEPROM.update(SOURCE_ADDRESS_EEPROM_ADDRESS, NMEA2000.GetN2kSource());
+  if (NMEA2000.ReadResetAddressChanged()) EEPROM.update(EEPROM_SOURCE_ADDRESS, NMEA2000.GetN2kSource());
 
   
   // Update the states of connected LEDs
@@ -414,15 +442,15 @@ void processSwitchInputs() {
   unsigned long now = millis();
   bool transmit = false;
 
-  if ((COMMAND_UPDATE_INTERVAL != 0UL) && (now > deadline)) {
+  if ((PGN128006v.getCommandTimeout() != 0.0) && (now > deadline)) {
     if (!DEBOUNCER.channelState(GPIO_PORT_SWITCH) && DEBOUNCER.channelState(GPIO_STARBOARD_SWITCH)) {
       PGN128006v.setThrusterDirectionControl(N2kDD473_ThrusterToPORT);
-      if (ANALOG_MODE) processAnalogInputs();
+      processAnalogControlInputs();
       transmit = true;
     }
     if (!DEBOUNCER.channelState(GPIO_STARBOARD_SWITCH) && DEBOUNCER.channelState(GPIO_PORT_SWITCH)) {
       PGN128006v.setThrusterDirectionControl(N2kDD473_ThrusterToSTARBOARD);
-      if (ANALOG_MODE) processAnalogInputs();
+      processAnalogControlInputs();
       transmit = true;;
     }
     if (POWER_MODE) {
@@ -439,8 +467,9 @@ void processSwitchInputs() {
         transmit = true;
       }
     }
-    if (transmit) transmitDirectionControl();
-    deadline = (now + COMMAND_UPDATE_INTERVAL);
+    if (transmit) transmitThrusterControl();
+
+    deadline = (now + (PGN128006v.getCommandTimeout() * 1000));
   }
 }
 
@@ -448,7 +477,7 @@ void processSwitchInputs() {
  * Read analog inputs for speed and azimuth and assign to the
  * appropriate PGN128006 properties.
  */
-void processAnalogInputs() {
+void processAnalogControlInputs() {
   int value = adc->analogRead(GPIO_SPEED_ANALOG_IN);
   if (value != ADC_ERROR_VALUE) {
     PGN128006v.setSpeedControl((uint8_t) ((value / adc->adc0->getMaxValue()) * 100));
@@ -460,15 +489,15 @@ void processAnalogInputs() {
 }
 
 /**********************************************************************
- * transmitDirectionControl(direction) transmits a PGN 126208 Command
- * Group Function containing a PGN 128006 Thruster Control Status
- * update to the device identified by THRUSTER_SOURCE. The message is
- * only sent if THRUSTER_SOURCE is set to an address other than the
- * broadcast address and this can only have happened if the module has
- * previously received a PGN128006 status message from the thruster
- * whose id is configured by the module's hardware DIP switch.
+ * transmitThrusterControl() transmits a PGN 126208 Command Group
+ * Function containing a PGN 128006 Thruster Control Status update to
+ * the device specifically identified by THRUSTER_SOURCE_ADDRESS.
+ * 
+ * The transmitted command will always contain ThrusterIdentifier and
+ * ThrusterDirectionControl properties, other property values will only
+ * be transmitted if they have been updated since their last transmit.
  */
-void transmitDirectionControl() {
+void transmitThrusterControl() {
   if (THRUSTER_SOURCE_ADDRESS != BROADCAST_SOURCE_ADDRESS) {
     tN2kMsg N2kMsg;
     N2kMsg.SetPGN(126208UL);                // Command Group Function 
@@ -477,15 +506,65 @@ void transmitDirectionControl() {
     N2kMsg.AddByte(0x01);                   // This is a command message
     N2kMsg.Add3ByteInt(128006UL);           // Thruster Control Status PGN
     N2kMsg.AddByte(0xF8);                   // Retain existing priority
-    N2kMsg.AddByte(0x04);                   // Four parameter pairs follow
-    N2kMsg.AddByte(0x02);                   // Parameter 1 - Field 2 (Thruster Identifier)
-    N2kMsg.AddByte(PGN128006v.getThrusterIdentifier()); 
-    N2kMsg.AddByte(0x03);                   // Parameter 2 - Field 3 (Thruster Direction Control)
-    N2kMsg.AddByte(PGN128006v.getThrusterDirectionControl());
-    N2kMsg.AddByte(0x06);                   // Parameter 3 - Field 6 (Speed Control)
-    N2kMsg.AddByte(PGN128006v.getSpeedControl());
-    N2kMsg.AddByte(0x09);                   // Parameter 4 - Field 9 (Azimuth Control)
-    N2kMsg.Add2ByteDouble(PGN128006v.getAzimuthControl(), 0.0001);
+
+    int dirtyCount = 2; // We always transmit F02 ThrusterIdentifier and F03 ThrusterDirectionControl
+    for (int i = 4; i <= PGN128006_FieldCount; i++) if (PGN128006v.isDirty(i)) dirtyCount++;
+
+    N2kMsg.AddByte(dirtyCount);                   // Number of parameter pairs
+    for (int i = 2; i<= PGN128006_FieldCount; i++) {
+      switch (i) {
+        case 2:
+          N2kMsg.AddByte(0x02);                   // Parameter 1 - Field 2 (Thruster Identifier)
+          N2kMsg.AddByte(PGN128006v.getThrusterIdentifier());
+          break;
+        case 3:
+          N2kMsg.AddByte(0x03);                   // Parameter 2 - Field 3 (Thruster Direction Control)
+          N2kMsg.AddByte(PGN128006v.getThrusterDirectionControl());
+          break;
+        case 4:
+          if (PGN128006v.isDirty(i)) {
+            N2kMsg.AddByte(0x04);                   // Parameter 3 - Field 4 (Power Control)
+            N2kMsg.AddByte(PGN128006v.getPowerEnable());
+            PGN128006v.setClean(i);
+          }
+          break;
+        case 5:
+          if (PGN128006v.isDirty(i)) {
+            N2kMsg.AddByte(0x05);                   // Parameter 4 - Field 5 (Thruster Retract Control)
+            N2kMsg.AddByte(PGN128006v.getThrusterRetractControl());
+            PGN128006v.setClean(i);
+          }
+          break;
+        case 6:
+          if (PGN128006v.isDirty(i)) {
+            N2kMsg.AddByte(0x06);                   // Parameter 5 - Field 6 (Speed Control)
+            N2kMsg.AddByte(PGN128006v.getSpeedControl());
+            PGN128006v.setClean(i);
+          }
+          break;
+        case 7:
+          if (PGN128006v.isDirty(i)) {
+            N2kMsg.AddByte(0x07);                   // Parameter 6 - Field 7 (Thruster Control Events)
+            N2kMsg.AddByte(PGN128006v.getThrusterControlEvents().Events);
+            PGN128006v.setClean(i);
+          }
+          break;
+        case 8:
+          if (PGN128006v.isDirty(i)) {
+            N2kMsg.AddByte(0x08);                   // Parameter 7 - Field 8 (Command Timeout Interval)
+            N2kMsg.Add1ByteDouble(PGN128006v.getCommandTimeout(), 0.005);
+            PGN128006v.setClean(i);
+          }
+          break;
+        case 9:
+          if (PGN128006v.isDirty(i)) {
+            N2kMsg.AddByte(0x09);                   // Parameter 8 - Field 9 (Azimuth Control)
+            N2kMsg.Add2ByteDouble(PGN128006v.getAzimuthControl(), 0.0001);
+            PGN128006v.setClean(i);
+          }
+          break;
+      }
+    }
     NMEA2000.SendMsg(N2kMsg);
     LED_MANAGER.operate(GPIO_POWER_LED, 1, 1);
   }
@@ -671,34 +750,34 @@ bool checkTimeout(unsigned long timeout) {
  * value iff the ThrusterIdentifier in the update array matches the
  * identifier defined for this module.
  */
-void updatePGN128006(PGN128006_UpdateField fields[]) {
+void updatePGN128006(PGN128006_Field fields[]) {
   bool canUpdate = false;
   
   for (int i = 0; i < (PGN128006_FieldCount + 1); i++) {
     switch (i) {
-      case PGN128006_ThrusterIdentifier_FieldIndex:
-        if (fields[i].modified && (PGN128006v.getThrusterIdentifier() == fields[i].value.F02)) canUpdate = true;
+      case 2:
+        if (fields[i].dirty && (PGN128006v.getThrusterIdentifier() == fields[i].value.F02)) canUpdate = true;
         break;
-      case PGN128006_ThrusterDirectionControl_FieldIndex:
-        if (canUpdate && fields[i].modified) PGN128006v.setThrusterDirectionControl(fields[i].value.F03);
+      case 3:
+        if (canUpdate && fields[i].dirty) PGN128006v.setThrusterDirectionControl(fields[i].value.F03);
         break;
-      case PGN128006_PowerEnable_FieldIndex:
-        if (canUpdate && fields[i].modified) PGN128006v.setPowerEnable(fields[i].value.F04);
+      case 4:
+        if (canUpdate && fields[i].dirty) PGN128006v.setPowerEnable(fields[i].value.F04);
         break;
-      case PGN128006_ThrusterRetractControl_FieldIndex:
-        if (canUpdate && fields[i].modified) PGN128006v.setThrusterRetractControl(fields[i].value.F05);
+      case 5:
+        if (canUpdate && fields[i].dirty) PGN128006v.setThrusterRetractControl(fields[i].value.F05);
         break;
-      case PGN128006_SpeedControl_FieldIndex:
-        if (canUpdate && fields[i].modified) PGN128006v.setSpeedControl(fields[i].value.F06);
+      case 6:
+        if (canUpdate && fields[i].dirty) PGN128006v.setSpeedControl(fields[i].value.F06);
         break;
-      case PGN128006_ThrusterControlEvents_FieldIndex:
-        if (canUpdate && fields[i].modified) PGN128006v.setThrusterControlEvents(fields[i].value.F07);
+      case 7:
+        if (canUpdate && fields[i].dirty) PGN128006v.setThrusterControlEvents(fields[i].value.F07);
         break;
-      case PGN128006_CommandTimeout_FieldIndex:
-        if (canUpdate && fields[i].modified) PGN128006v.setCommandTimeout(fields[i].value.F08);
+      case 8:
+        if (canUpdate && fields[i].dirty) PGN128006v.setCommandTimeout(fields[i].value.F08);
         break;
-      case PGN128006_AzimuthControl_FieldIndex:
-        if (canUpdate && fields[i].modified) PGN128006v.setAzimuthControl(fields[i].value.F09);
+      case 9:
+        if (canUpdate && fields[i].dirty) PGN128006v.setAzimuthControl(fields[i].value.F09);
         break;
       default:
         break;
@@ -711,7 +790,7 @@ void updatePGN128006(PGN128006_UpdateField fields[]) {
  * from a device, so we might as well pander to them.
  */
 bool ISORequestHandler(unsigned long RequestedPGN, unsigned char Requester, int DeviceIndex) {
-  if (OPERATING_MODE == RELAY_INTERFACE) {
+  if (SELECTED_OPERATING_MODE == RELAY_INTERFACE) {
     switch (RequestedPGN) {
       case 128006UL: transmitPGN128006(0); return(true); break;
       case 128007UL: transmitPGN128007(0); return(true); break;

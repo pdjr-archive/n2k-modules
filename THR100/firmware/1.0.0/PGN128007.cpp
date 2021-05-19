@@ -2,86 +2,97 @@
  * PGN128007.cpp (c) 2021 Paul Reeve <preeve@pdjr.eu>
  */
 
+#include <Arduino.h>
 #include <NMEA2000StdTypes.h>
 #include <N2kTypes.h>
 #include "PGN128007.h"
 
-PGN128007::PGN128007() {
-  this->properties.ThrusterIdentifier = 0x00;
-  this->properties.ThrusterMotorType = N2kDD487_Hydraulic;
-  this->properties.MotorPowerRating = 0;
-  this->properties.MaximumMotorTemperatureRating = 0.0;
-  this->properties.MaximumRotationalSpeed = 0.0;
+const int PGN128007::ThrusterIdentifier = 1;
+const int PGN128007::ThrusterMotorType = 2;
+const int PGN128007::MotorPowerRating = 4;
+const int PGN128007::MaximumMotorTemperatureRating = 5;
+const int PGN128007::MaximumRotationalSpeed = 6;
+
+bool PGN128007::isDirty(int index) {
+  return(this->properties[index].dirty);
 }
 
-PGN128007_Properties PGN128007::getProperties() {
-  return this->properties;
+void PGN128007::setClean(int index) {
+  this->properties[index].dirty = false;
 }
 
-unsigned char PGN128007::getThrusterIdentifier() {
-  return this->properties.ThrusterIdentifier;
+PGN128007_GenericField PGN128007::getProperty(int index) {
+  return this->properties[index].value;
+}
+
+void PGN128007::setProperty(int index, PGN128007_GenericField value) {
+  switch (index) {
+    case PGN128007::ThrusterIdentifier: this->setThrusterIdentifier(value.F01); break;
+    case PGN128007::ThrusterMotorType: this->setThrusterMotorType(value.F02); break;
+    case PGN128007::MotorPowerRating: this->setMotorPowerRating(value.F04); break;
+    case PGN128007::MaximumMotorTemperatureRating: this->setMaximumMotorTemperatureRating(value.F05); break;
+    case PGN128007::MaximumRotationalSpeed: this->setMaximumRotationalSpeed(value.F06); break;
+    default: break;
+  }
+}
+
+uint8_t PGN128007::getThrusterIdentifier() {
+  return this->properties[PGN128007::ThrusterIdentifier].value.F01;
 }
 
 tN2kDD487 PGN128007::getThrusterMotorType() {
-  return this->properties.ThrusterMotorType;
+  return this->properties[PGN128007::ThrusterMotorType].value.F02;
 }
 
 int PGN128007::getMotorPowerRating() {
-  return this->properties.MotorPowerRating;
+  return this->properties[PGN128007::MotorPowerRating].value.F04;
 }
 
 double PGN128007::getMaximumMotorTemperatureRating() {
-  return this->properties.MaximumMotorTemperatureRating;
+  return this->properties[PGN128007::MaximumMotorTemperatureRating].value.F05;
 }
 
 double PGN128007::getMaximumRotationalSpeed() {
-  return this->properties.MaximumRotationalSpeed;
-}
-
-PGN128007_GenericField PGN128007::getField(int index) {
-  PGN128007_GenericField retval = { 0 };
-  switch (index) {
-    case PGN128007_ThrusterIdentifier_FieldIndex: retval.F01 = this->properties.ThrusterIdentifier; break;
-    case PGN128007_ThrusterMotorType_FieldIndex: retval.F02 = this->properties.ThrusterMotorType; break;
-    case PGN128007_MotorPowerRating_FieldIndex: retval.F04 = this->properties.MotorPowerRating; break;
-    case PGN128007_MaximumMotorTemperatureRating_FieldIndex: retval.F05 = this->properties.MaximumMotorTemperatureRating; break;
-    case PGN128007_MaximumRotationalSpeed_FieldIndex: retval.F06 = this->properties.MaximumRotationalSpeed; break;
-    default: break;
-  }
-  return retval;
-}
-
-void PGN128007::setProperties(PGN128007_Properties value) {
-  this->properties = value;
+  return this->properties[PGN128007::MaximumRotationalSpeed].value.F06;
 }
 
 void PGN128007::setThrusterIdentifier(unsigned char value) {
-  this->properties.ThrusterIdentifier = value;
+  this->properties[PGN128007::ThrusterIdentifier].value.F01 = value;
 }
 
 void PGN128007::setThrusterMotorType(tN2kDD487 value) {
-  this->properties.ThrusterMotorType = value;
+  this->properties[PGN128007::ThrusterMotorType].value.F02 = value;
 }
 
 void PGN128007::setMotorPowerRating(int value) {
-  this->properties.MotorPowerRating = value;
+  this->properties[PGN128007::MotorPowerRating].value.F04 = value;
 }
 
 void PGN128007::setMaximumMotorTemperatureRating(double value) {
-  this->properties.MaximumMotorTemperatureRating = value;
+  this->properties[PGN128007::MaximumMotorTemperatureRating].value.F05 = value;
 }
 
 void PGN128007::setMaximumRotationalSpeed(double value) {
-  this->properties.MaximumRotationalSpeed = value;
+  this->properties[PGN128007::MaximumRotationalSpeed].value.F06 = value;
 }
 
-void PGN128007::setField(int index, PGN128007_GenericField value) {
-  switch (index) {
-    case PGN128007_ThrusterIdentifier_FieldIndex: this->properties.ThrusterIdentifier = value.F01; break;
-    case PGN128007_ThrusterMotorType_FieldIndex: this->properties.ThrusterMotorType = value.F02; break;
-    case PGN128007_MotorPowerRating_FieldIndex: this->properties.MotorPowerRating = value.F04; break;
-    case PGN128007_MaximumMotorTemperatureRating_FieldIndex: this->properties.MaximumMotorTemperatureRating = value.F05; break;
-    case PGN128007_MaximumRotationalSpeed_FieldIndex: this->properties.MaximumRotationalSpeed = value.F06; break;
-    default: break;
+void PGN128007::serialDump() {
+  Serial.println("PGN128007 {");
+  Serial.print("  F01 (Thruster Identifier): ");
+  Serial.println(this->properties[PGN128007::ThrusterIdentifier].value.F01, HEX);
+  Serial.print("  F02 (Thruster Motor Type): ");
+  switch (this->properties[PGN128007::ThrusterMotorType].value.F02) {
+    case N2kDD487_12VDC: Serial.println("12VDC"); break;
+    case N2kDD487_24VDC: Serial.println("24VDC"); break;
+    case N2kDD487_48VDC: Serial.println("48VDC"); break;
+    case N2kDD487_24VAC: Serial.println("24VAC"); break;
+    case N2kDD487_Hydraulic: Serial.println("Hydraulic"); break;
   }
+  Serial.print("  F04 (Motor Power Rating): ");
+  Serial.println(this->properties[PGN128007::MotorPowerRating].value.F04);
+  Serial.print("  F05 (Maximum Motor Temperature Rating): ");
+  Serial.println(this->properties[PGN128007::MaximumMotorTemperatureRating].value.F05);
+  Serial.print("  F06 (Maximum Rotational Speed): ");
+  Serial.println(this->properties[PGN128007::MaximumRotationalSpeed].value.F06);
+  Serial.println("}");
 }

@@ -1,8 +1,22 @@
 # THR100 Thruster Module
 
-The __THR100 Thruster Module__ is an NMEA 2000 module which can act
-as either a thruster switch interface or a thruster relay interface
-dependant upon the state of a PCB configuration switch.
+The __THR100 Thruster Module__ is an NMEA 2000 module which implements
+the NMEA Thruster Network Messages protocol described in this
+[Technical Bulletin](https://www.nmea.org/Assets/20190613%20thruster%20amendment%20128006,%20128007,%20128008.pdf).
+
+The __THR100__ module is configured by a hardware switch to operate in
+either switch interface or relay interface modes.
+
+In switch interface mode the __THR100__ accepts command inputs from
+physical switches and potentiometers and transmits these commands over
+the NMEA bus to a remote thruster device.
+The address of the remote thruster to which commands are sent is
+configured by a hardware DIP switch.
+
+In relay interface mode the __THR100__ listens on the NMEA bus for
+commands and responds by operating physical relays which can be
+connected to the thruster device that is being controlled.
+The address of the thruster is configured by a hardware DIP switch.
 
 ## THR100 acting as a switch interface
 
@@ -16,10 +30,11 @@ connection of the following inputs.
 | SPEED     | Speed (0-100%)    | Potentiometer  | Optional |
 | AZIMUTH   | Angle             | Potentiometer  | Optional |
 
-Optional inputs are enabled by PCB DIP switch.
+Input signals are decoded and transmitted to a remote thruster
+identified by an address configured by a PCB DIP switch.
 
-The address of the thruster being controlled by the __THR100__ is also
-set by PCB DIP switch.
+The address of the thruster being controlled by the __THR100__ is set
+by PCB DIP switch.
 
 ## THR100 acting as a relay interface
 

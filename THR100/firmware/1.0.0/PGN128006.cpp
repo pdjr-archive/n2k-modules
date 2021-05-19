@@ -6,115 +6,109 @@
 #include <N2kTypes.h>
 #include "PGN128006.h"
 
-PGN128006::PGN128006() {
-  this->properties.ThrusterIdentifier = 0x00;
-  this->properties.ThrusterDirectionControl = N2kDD473_OFF;
-  this->properties.PowerEnable = N2kDD002_Off;
-  this->properties.ThrusterRetractControl = N2kDD474_OFF;
-  this->properties.SpeedControl = 0;
-  this->properties.ThrusterControlEvents.SetEvents(0);
-  this->properties.CommandTimeout = 0.25;
-  this->properties.AzimuthControl = 0.0;
+const int PGN128006::ThrusterIdentifier = 2;
+const int PGN128006::ThrusterDirectionControl = 3;
+const int PGN128006::PowerEnable = 4;
+const int PGN128006::ThrusterRetractControl = 5;
+const int PGN128006::SpeedControl = 6;
+const int PGN128006::ThrusterControlEvents = 7;
+const int PGN128006::CommandTimeout = 8;
+const int PGN128006::AzimuthControl = 9;
+
+bool PGN128006::isDirty(int index) {
+  return(this->properties[index].dirty);
 }
 
-PGN128006_Properties PGN128006::getProperties() {
-  return this->properties;
+void PGN128006::setClean(int index) {
+  this->properties[index].dirty = false;
+}
+
+PGN128006_GenericField PGN128006::getProperty(int index) {
+  return this->properties[index].value;
+}
+
+void PGN128006::setProperty(int index, PGN128006_GenericField value) {
+  switch (index) {
+    case PGN128006::ThrusterIdentifier: this->setThrusterIdentifier(value.F02); break;
+    case PGN128006::ThrusterDirectionControl: this->setThrusterDirectionControl(value.F03); break;
+    case PGN128006::PowerEnable: this->setPowerEnable(value.F04); break;
+    case PGN128006::ThrusterRetractControl: this->setThrusterRetractControl(value.F05); break;
+    case PGN128006::SpeedControl: this->setSpeedControl(value.F06); break;
+    case PGN128006::ThrusterControlEvents: this->setThrusterControlEvents(value.F07); break;
+    case PGN128006::CommandTimeout: this->setCommandTimeout(value.F08); break;
+    case PGN128006::AzimuthControl: this->setAzimuthControl(value.F09); break;
+    default: break;
+  }
 }
 
 uint8_t PGN128006::getThrusterIdentifier() {
-  return this->properties.ThrusterIdentifier;
+  return this->properties[PGN128006::ThrusterIdentifier].value.F02;
 }
 
 tN2kDD473 PGN128006::getThrusterDirectionControl() {
-  return this->properties.ThrusterDirectionControl;
+  return this->properties[PGN128006::ThrusterDirectionControl].value.F03;
 }
 
 tN2kDD002 PGN128006::getPowerEnable() {
-  return this->properties.PowerEnable;
+  return this->properties[PGN128006::PowerEnable].value.F04;
 }
 
 tN2kDD474 PGN128006::getThrusterRetractControl() {
-  return this->properties.ThrusterRetractControl;
+  return this->properties[PGN128006::ThrusterRetractControl].value.F05;
 }
 
 uint8_t PGN128006::getSpeedControl() {
-  return this->properties.SpeedControl;
+  return this->properties[PGN128006::SpeedControl].value.F06;
 }
 
 tN2kDD475 PGN128006::getThrusterControlEvents() {
-  return this->properties.ThrusterControlEvents;
+  return this->properties[PGN128006::ThrusterControlEvents].value.F07;
 }
 
 double PGN128006::getCommandTimeout() {
-  return this->properties.CommandTimeout;
+  return this->properties[PGN128006::CommandTimeout].value.F08;
 }
 
 double PGN128006::getAzimuthControl() {
-  return this->properties.AzimuthControl;
-}
-
-PGN128006_GenericField PGN128006::getField(int index) {
-  PGN128006_GenericField retval = { 0 };
-  switch (index) {
-    case PGN128006_ThrusterIdentifier_FieldIndex: retval.F02 = this->properties.ThrusterIdentifier; break;
-    case PGN128006_ThrusterDirectionControl_FieldIndex: retval.F03 = this->properties.ThrusterDirectionControl; break;
-    case PGN128006_PowerEnable_FieldIndex: retval.F04 = this->properties.PowerEnable; break;
-    case PGN128006_ThrusterRetractControl_FieldIndex: retval.F05 = this->properties.ThrusterRetractControl; break;
-    case PGN128006_SpeedControl_FieldIndex: retval.F06 = this->properties.SpeedControl; break;
-    case PGN128006_ThrusterControlEvents_FieldIndex: retval.F07 = this->properties.ThrusterControlEvents; break;
-    case PGN128006_CommandTimeout_FieldIndex: retval.F08 = this->properties.CommandTimeout; break;
-    case PGN128006_AzimuthControl_FieldIndex: retval.F09 = this->properties.AzimuthControl; break;
-    default: break;
-  }
-  return retval;
-}
-
-void PGN128006::setProperties(PGN128006_Properties value) {
-  this->properties = value;
+  return this->properties[PGN128006::AzimuthControl].value.F09;
 }
 
 void PGN128006::setThrusterIdentifier(uint8_t value) {
-  this->properties.ThrusterIdentifier = value;
+  this->properties[PGN128006::ThrusterIdentifier].dirty = (this->properties[PGN128006::ThrusterIdentifier].value.F02 != value);
+  this->properties[PGN128006::ThrusterIdentifier].value.F02 = value;
 }
 
 void PGN128006::setThrusterDirectionControl(tN2kDD473 value) {
-  this->properties.ThrusterDirectionControl = value;
+  this->properties[PGN128006::ThrusterDirectionControl].dirty = (this->properties[PGN128006::ThrusterDirectionControl].value.F03 != value);
+  this->properties[PGN128006::ThrusterDirectionControl].value.F03 = value;
 }
 
 void PGN128006::setPowerEnable(tN2kDD002 value) {
-  this->properties.PowerEnable = value;
+  this->properties[PGN128006::PowerEnable].dirty = (this->properties[PGN128006::PowerEnable].value.F04 != value);
+  this->properties[PGN128006::PowerEnable].value.F04 = value;
 }
 
 void PGN128006::setThrusterRetractControl(tN2kDD474 value) {
-  this->properties.ThrusterRetractControl = value;
+  this->properties[PGN128006::ThrusterRetractControl].dirty = (this->properties[PGN128006::ThrusterRetractControl].value.F05 != value);
+  this->properties[PGN128006::ThrusterRetractControl].value.F05 = value;
 }
 
 void PGN128006::setSpeedControl(uint8_t value) {
-  this->properties.SpeedControl = value;
+  this->properties[PGN128006::SpeedControl].dirty = (this->properties[PGN128006::SpeedControl].value.F06 != value);
+  this->properties[PGN128006::SpeedControl].value.F06 = value;
 }
 
 void PGN128006::setThrusterControlEvents(tN2kDD475 value) {
-  this->properties.ThrusterControlEvents = value;
+  this->properties[PGN128006::ThrusterControlEvents].dirty = true;
+  this->properties[PGN128006::ThrusterControlEvents].value.F07 = value;
 }
 
 void PGN128006::setCommandTimeout(double value) {
-  this->properties.CommandTimeout = value;
+  this->properties[PGN128006::CommandTimeout].dirty = (this->properties[PGN128006::CommandTimeout].value.F08 != value);
+  this->properties[PGN128006::CommandTimeout].value.F08 = value;
 }
 
 void PGN128006::setAzimuthControl(double value) {
-  this->properties.AzimuthControl = value;
-}
-
-void PGN128006::setField(int index, PGN128006_GenericField value) {
-  switch (index) {
-    case PGN128006_ThrusterIdentifier_FieldIndex: this->properties.ThrusterIdentifier = value.F02; break;
-    case PGN128006_ThrusterDirectionControl_FieldIndex: this->properties.ThrusterDirectionControl = value.F03; break;
-    case PGN128006_PowerEnable_FieldIndex: this->properties.PowerEnable = value.F04; break;
-    case PGN128006_ThrusterRetractControl_FieldIndex: this->properties.ThrusterRetractControl = value.F05; break;
-    case PGN128006_SpeedControl_FieldIndex: this->properties.SpeedControl = value.F06; break;
-    case PGN128006_ThrusterControlEvents_FieldIndex: this->properties.ThrusterControlEvents = value.F07; break;
-    case PGN128006_CommandTimeout_FieldIndex: this->properties.CommandTimeout = value.F08; break;
-    case PGN128006_AzimuthControl_FieldIndex: this->properties.AzimuthControl = value.F09; break;
-    default: break;
-  }
+  this->properties[PGN128006::AzimuthControl].dirty = (this->properties[PGN128006::AzimuthControl].value.F09 != value);
+  this->properties[PGN128006::AzimuthControl].value.F09 = value;
 }

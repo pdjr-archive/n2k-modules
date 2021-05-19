@@ -34,7 +34,7 @@ bool GroupFunctionHandlerForPGN128006::HandleCommand(const tN2kMsg &N2kMsg, uint
   tN2kGroupFunctionParameterErrorCode PARec;
   tN2kMsg N2kRMsg;
   int canUpdate = true;
-  PGN128006_UpdateField fields[] = { {false,0},{false,0},{false,0},{false,0},{false,0},{false,0},{false,0},{false,0},{false,0},{false,0} };
+  PGN128006_Field fields[] = { {false,0},{false,0},{false,0},{false,0},{false,0},{false,0},{false,0},{false,0},{false,0},{false,0} };
 
  	if (PrioritySetting != 0x08 || PrioritySetting != 0x0f || PrioritySetting != 0x09) pec = N2kgfTPec_TransmitIntervalOrPriorityNotSupported;
 
@@ -52,47 +52,47 @@ bool GroupFunctionHandlerForPGN128006::HandleCommand(const tN2kMsg &N2kMsg, uint
     field = N2kMsg.GetByte(Index);
     PARec = N2kgfpec_Acknowledge;
     switch (field) {
-      case PGN128006_ThrusterIdentifier_FieldIndex:
-        fields[field].modified = true;
+      case 2:
+        fields[field].dirty = true;
         fields[field].value.F02 = N2kMsg.GetByte(Index);
         break;
-      case PGN128006_ThrusterDirectionControl_FieldIndex:
+      case 3:
         switch(N2kMsg.GetByte(Index) & 0x0f) {
-          case 0: fields[field].modified = true; fields[field].value.F03 = N2kDD473_OFF; break;
-          case 1: fields[field].modified = true; fields[field].value.F03 = N2kDD473_ThrusterReady; break;
-          case 2: fields[field].modified = true; fields[field].value.F03 = N2kDD473_ThrusterToPORT; break;
-          case 3: fields[field].modified = true; fields[field].value.F03 = N2kDD473_ThrusterToSTARBOARD; break;
+          case 0: fields[field].dirty = true; fields[field].value.F03 = N2kDD473_OFF; break;
+          case 1: fields[field].dirty = true; fields[field].value.F03 = N2kDD473_ThrusterReady; break;
+          case 2: fields[field].dirty = true; fields[field].value.F03 = N2kDD473_ThrusterToPORT; break;
+          case 3: fields[field].dirty = true; fields[field].value.F03 = N2kDD473_ThrusterToSTARBOARD; break;
           default: PARec = N2kgfpec_RequestOrCommandParameterOutOfRange; canUpdate = false; break;
         }
         break;
-      case PGN128006_PowerEnable_FieldIndex:
+      case 4:
         switch(N2kMsg.GetByte(Index) & 0x03) {
-          case 0: fields[field].modified = true; fields[field].value.F04 = N2kDD002_Off; break;
-          case 1: fields[field].modified = true; fields[field].value.F04 = N2kDD002_On; break;
-          case 2: fields[field].modified = true; fields[field].value.F04 = N2kDD002_Error; break;
-          case 3: fields[field].modified = true; fields[field].value.F04 = N2kDD002_Unavailable; break;
+          case 0: fields[field].dirty = true; fields[field].value.F04 = N2kDD002_Off; break;
+          case 1: fields[field].dirty = true; fields[field].value.F04 = N2kDD002_On; break;
+          case 2: fields[field].dirty = true; fields[field].value.F04 = N2kDD002_Error; break;
+          case 3: fields[field].dirty = true; fields[field].value.F04 = N2kDD002_Unavailable; break;
           default: PARec = N2kgfpec_RequestOrCommandParameterOutOfRange; canUpdate = false; break;
         }
         break;
-      case PGN128006_ThrusterRetractControl_FieldIndex:
+      case 5:
         switch(N2kMsg.GetByte(Index) & 0x03) {
-          case 0: fields[field].modified = true; fields[field].value.F05 = N2kDD474_OFF; break;
-          case 1: fields[field].modified = true; fields[field].value.F05 = N2kDD474_Extend; break;
-          case 2: fields[field].modified = true; fields[field].value.F05 = N2kDD474_Retract; break;
+          case 0: fields[field].dirty = true; fields[field].value.F05 = N2kDD474_OFF; break;
+          case 1: fields[field].dirty = true; fields[field].value.F05 = N2kDD474_Extend; break;
+          case 2: fields[field].dirty = true; fields[field].value.F05 = N2kDD474_Retract; break;
           default: PARec = N2kgfpec_RequestOrCommandParameterOutOfRange; canUpdate = false; break;
         }
         break;
-      case PGN128006_SpeedControl_FieldIndex:
-        fields[field].modified = true; fields[field].value.F06 = N2kMsg.GetByte(Index);
+      case 6:
+        fields[field].dirty = true; fields[field].value.F06 = N2kMsg.GetByte(Index);
         break;
-      case PGN128006_ThrusterControlEvents_FieldIndex:
-        fields[field].modified = true; fields[field].value.F07.SetEvents(N2kMsg.GetByte(Index));
+      case 7:
+        fields[field].dirty = true; fields[field].value.F07.SetEvents(N2kMsg.GetByte(Index));
         break;
-      case PGN128006_CommandTimeout_FieldIndex:
-        fields[field].modified = true; fields[field].value.F08 = N2kMsg.Get1ByteUDouble(0.005, Index);
+      case 8:
+        fields[field].dirty = true; fields[field].value.F08 = N2kMsg.Get1ByteUDouble(0.005, Index);
         break;      
-      case PGN128006_AzimuthControl_FieldIndex:
-        fields[field].modified = true; fields[field].value.F09 = N2kMsg.Get2ByteDouble(0.0001, Index);
+      case 9:
+        fields[field].dirty = true; fields[field].value.F09 = N2kMsg.Get2ByteDouble(0.0001, Index);
         break;
       default:
         PARec = N2kgfpec_InvalidRequestOrCommandParameterField;

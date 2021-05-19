@@ -2,90 +2,119 @@
  * PGN128008.cpp (c) 2021 Paul Reeve <preeve@pdjr.eu>
  */
 
+#include <Arduino.h>
 #include <NMEA2000StdTypes.h>
 #include <N2kTypes.h>
 #include "PGN128008.h"
 
-PGN128008::PGN128008() {
-  this->properties.ThrusterIdentifier = 0x00;
-  this->properties.ThrusterMotorEvents.SetEvents(0);
-  this->properties.MotorCurrent = 0;
-  this->properties.MotorTemperature = 0.0;
-  this->properties.TotalMotorOperatingTime = 0.0;
+const int PGN128008::SID = 1;
+const int PGN128008::ThrusterIdentifier = 2;
+const int PGN128008::ThrusterMotorEvents = 3;
+const int PGN128008::MotorCurrent = 4;
+const int PGN128008::MotorTemperature = 5;
+const int PGN128008::TotalMotorOperatingTime = 6;
+
+bool PGN128008::isDirty(int index) {
+  return(this->properties[index].dirty);
 }
 
-PGN128008_Properties PGN128008::getProperties() {
-  return this->properties;
+void PGN128008::setClean(int index) {
+  this->properties[index].dirty = false;
 }
 
-unsigned char PGN128008::getThrusterIdentifier() {
-  return this->properties.ThrusterIdentifier;
+PGN128008_GenericField PGN128008::getProperty(int index) {
+  return this->properties[index].value;
+}
+
+void PGN128008::setProperty(int index, PGN128008_GenericField value) {
+  switch (index) {
+    case PGN128008::SID: this->setSID(value.F01); break;
+    case PGN128008::ThrusterIdentifier: this->setThrusterIdentifier(value.F02); break;
+    case PGN128008::ThrusterMotorEvents: this->setThrusterMotorEvents(value.F03); break;
+    case PGN128008::MotorCurrent: this->setMotorCurrent(value.F04); break;
+    case PGN128008::MotorTemperature: this->setMotorTemperature(value.F05); break;
+    case PGN128008::TotalMotorOperatingTime: this->setTotalMotorOperatingTime(value.F06); break;
+    default: break;
+  }
+}
+
+uint8_t PGN128008::getSID() {
+  return this->properties[PGN128008::SID].value.F01;
+}
+
+uint8_t PGN128008::getThrusterIdentifier() {
+  return this->properties[PGN128008::ThrusterIdentifier].value.F02;
 }
 
 tN2kDD471 PGN128008::getThrusterMotorEvents() {
-  return this->properties.ThrusterMotorEvents;
+  return this->properties[PGN128008::ThrusterMotorEvents].value.F03;
 }
 
-unsigned char PGN128008::getMotorCurrent() {
-  return this->properties.MotorCurrent;
+uint8_t PGN128008::getMotorCurrent() {
+  return this->properties[PGN128008::MotorCurrent].value.F04;
 }
 
 double PGN128008::getMotorTemperature() {
-  return this->properties.MotorTemperature;
+  return this->properties[PGN128008::MotorTemperature].value.F05;
 }
 
 unsigned long PGN128008::getTotalMotorOperatingTime() {
-  return this->properties.TotalMotorOperatingTime;
+  return this->properties[PGN128008::TotalMotorOperatingTime].value.F06;
 }
 
-PGN128008_GenericField PGN128008::getField(int index) {
-  PGN128008_GenericField retval = { 0 };
-  switch (index) {
-    case PGN128008_ThrusterIdentifier_FieldIndex: retval.F02 = this->properties.ThrusterIdentifier; break;
-    case PGN128008_ThrusterMotorEvents_FieldIndex: retval.F03 = this->properties.ThrusterMotorEvents; break;
-    case PGN128008_MotorCurrent_FieldIndex: retval.F04 = this->properties.MotorCurrent; break;
-    case PGN128008_MotorTemperature_FieldIndex: retval.F05 = this->properties.MotorTemperature; break;
-    case PGN128008_TotalMotorOperatingTime_FieldIndex: retval.F06 = this->properties.TotalMotorOperatingTime; break;
-    default: break;
-  }
-  return retval;
+void PGN128008::setSID(uint8_t value) {
+  this->properties[PGN128008::SID].dirty = true;
+  this->properties[PGN128008::SID].value.F01 = value;
 }
 
-void PGN128008::setProperties(PGN128008_Properties value) {
-  this->properties = value;
-}
-
-void PGN128008::setThrusterIdentifier(unsigned char value) {
-  this->properties.ThrusterIdentifier = value;
+void PGN128008::setThrusterIdentifier(uint8_t value) {
+  this->properties[PGN128008::ThrusterIdentifier].dirty = (this->properties[PGN128008::ThrusterIdentifier].value.F02 != value);
+  this->properties[PGN128008::ThrusterIdentifier].value.F02 = value;
 }
 
 void PGN128008::setThrusterMotorEvents(tN2kDD471 value) {
-  this->properties.ThrusterMotorEvents = value;
+  this->properties[PGN128008::ThrusterMotorEvents].dirty = true;
+  this->properties[PGN128008::ThrusterMotorEvents].value.F03 = value;
 }
 
-void PGN128008::setMotorCurrent(unsigned char value) {
-  this->properties.MotorCurrent = value;
+void PGN128008::setMotorCurrent(uint8_t value) {
+  this->properties[PGN128008::MotorCurrent].dirty = (this->properties[PGN128008::MotorCurrent].value.F04 != value);
+  this->properties[PGN128008::MotorCurrent].value.F04 = value;
 }
 
 void PGN128008::setMotorTemperature(double value) {
-  this->properties.MotorTemperature = value;
+  this->properties[PGN128008::MotorTemperature].dirty = (this->properties[PGN128008::MotorTemperature].value.F05 != value);
+  this->properties[PGN128008::MotorTemperature].value.F05 = value;
 }
 
-void PGN128008::setTotalMotorOperatingTime(unsigned long value) {
-  this->properties.TotalMotorOperatingTime = value;
-}
-
-void PGN128008::setField(int index, PGN128008_GenericField value) {
-  switch (index) {
-    case PGN128008_ThrusterIdentifier_FieldIndex: this->properties.ThrusterIdentifier = value.F02; break;
-    case PGN128008_ThrusterMotorEvents_FieldIndex: this->properties.ThrusterMotorEvents = value.F03; break;
-    case PGN128008_MotorCurrent_FieldIndex: this->properties.MotorCurrent = value.F04; break;
-    case PGN128008_MotorTemperature_FieldIndex: this->properties.MotorTemperature = value.F05; break;
-    case PGN128008_TotalMotorOperatingTime_FieldIndex: this->properties.TotalMotorOperatingTime = value.F06; break;
-    default: break;
-  }
+void PGN128008::setTotalMotorOperatingTime(unsigned long seconds) {
+  this->properties[PGN128008::TotalMotorOperatingTime].dirty = (this->properties[PGN128008::TotalMotorOperatingTime].value.F06 != seconds);
+  this->properties[PGN128008::TotalMotorOperatingTime].value.F06 = seconds;
 }
 
 void PGN128008::bumpTotalMotorOperatingTime(unsigned long seconds) {
-  this->properties.TotalMotorOperatingTime += seconds;
+  this->properties[PGN128008::TotalMotorOperatingTime].dirty = true;
+  this->properties[PGN128008::TotalMotorOperatingTime].value.F06 += seconds;
+}
+
+void PGN128008::serialDump() {
+  Serial.println("PGN128008 {");
+  Serial.print("  F1 (SID): ");
+  Serial.println(this->properties[PGN128008::SID].value.F01);
+  Serial.print("  F2 (Thruster Identifier): ");
+  Serial.println(this->properties[PGN128008::ThrusterIdentifier].value.F02);
+  Serial.print("  F3 (Thruster Motor Events): ");
+  if (this->properties[PGN128008::ThrusterMotorEvents].value.F03.Event.MotorOverTemperatureCutout) Serial.print("Motor over-temperature cutout ");
+  if (this->properties[PGN128008::ThrusterMotorEvents].value.F03.Event.MotorOverCurrentCutout) Serial.print("Motor over-current cutout ");
+  if (this->properties[PGN128008::ThrusterMotorEvents].value.F03.Event.LowOilLevelWarning) Serial.print("Low oil-level warning ");
+  if (this->properties[PGN128008::ThrusterMotorEvents].value.F03.Event.OilOverTemperatureWarning) Serial.print("Oil over-temperature warning ");
+  if (this->properties[PGN128008::ThrusterMotorEvents].value.F03.Event.ControllerUnderVoltageCutout) Serial.print("Controller under-voltage cutout ");
+  Serial.println();
+  Serial.print("  F4 (Motor Current): ");
+  Serial.println(this->properties[PGN128008::MotorCurrent].value.F04);
+  Serial.print("  F5 (Motor Temperature): ");
+  Serial.println(this->properties[PGN128008::MotorTemperature].value.F05);
+  Serial.print("  F6 (Total Motor Operating Time): ");
+  Serial.println(this->properties[PGN128008::TotalMotorOperatingTime].value.F06);
+  Serial.println("}");
 }
