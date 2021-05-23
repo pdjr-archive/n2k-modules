@@ -81,18 +81,11 @@
 /**********************************************************************
  * MCU PIN DEFINITIONS
  * 
- * GPIO pin definitions for the Teensy 3.2 MCU
+ * GPIO pin definitions. We are using the generic SW6RL4 module, so
+ * these are just aliases for that hardware's generic definitions.
  */
 #include <SW6RL4.h>
-#define GPIO_DEVICE_MODE GPIO_MODE
-#define GPIO_INSTANCE_BIT0_SWITCH GPIO_ADDR_0
-#define GPIO_INSTANCE_BIT1_SWITCH GPIO_ADDR_1
-#define GPIO_INSTANCE_BIT2_SWITCH GPIO_ADDR_2
-#define GPIO_INSTANCE_BIT3_SWITCH GPIO_ADDR_3
-#define GPIO_INSTANCE_BIT4_SWITCH GPIO_ADDR_4
-#define GPIO_INSTANCE_BIT5_SWITCH GPIO_ADDR_5
-#define GPIO_INSTANCE_BIT6_SWITCH GPIO_ADDR_6
-#define GPIO_INSTANCE_BIT7_SWITCH GPIO_ADDR_7
+
 #define GPIO_STARBOARD_SWITCH GPIO_SWITCH_1
 #define GPIO_PORT_SWITCH GPIO_SWITCH_2
 #define GPIO_RETRACT_SWITCH GPIO_SWITCH_3
@@ -102,8 +95,8 @@
 #define GPIO_TEMPERATURE_ANALOG GPIO_ANALOG_3
 #define GPIO_PORT_RELAY GPIO_RELAY_1
 #define GPIO_STARBOARD_RELAY GPIO_RELAY_2
-#define GPIO_BOARD_LED GPIO_LED_1
-#define GPIO_POWER_LED GPIO_LED_2
+#define GPIO_COMMON_RELAY GPIO_RELAY_3
+#define GPIO_POWER_LED GPIO_LED_1
 
 /**********************************************************************
  * DEVICE INFORMATION
@@ -202,22 +195,20 @@ bool ISORequestHandler(unsigned long RequestedPGN, unsigned char Requester, int 
 void messageHandler(const tN2kMsg&);
 
 /**********************************************************************
- * PGNs of messages transmitted by this program.
- * 
- * PGN 130316 Temperature, Extended Range is used to broadcast sensed
- * temperatures.
+ * PGNs of messages we transmit. These depend on the module's operating 
+ * mode, so we just initialise an empty list here and will populate it
+ * in setup().
  */
-const unsigned long TransmitMessages[] PROGMEM = { 126208UL, 128006UL, 128007UL, 128008UL, 0 };
+unsigned long TransmitMessages[5] = { 0, 0, 0, 0, 0 };
 
 /**********************************************************************
- * PGNs of messages handled by this program.
- * 
- * PGN126208 - In OPERATE mode we receive commands this way.
- * PGN128006 - In CONTROL mode we get the source address of the
- *             thruster we should control by listening.
+ * PGNs of messages we receive and their handlers.  These depend on the
+ * module's operating mode, so we just initialise an empty list here
+ * and will populate it in setup().
  */
 typedef struct { unsigned long PGN; void (*Handler)(const tN2kMsg &N2kMsg); } tNMEA2000Handler;
-tNMEA2000Handler NMEA2000Handlers[] = { { 128006UL, &PGN128006Handler } };
+tNMEA2000Handler NMEA2000Handlers[5] = { {0UL,0}, {0UL,0}, {0UL,0}, {0UL,0}, {0UL,0} };
+
 
 /**********************************************************************
  * ADDRESS_SWITCH switch decoder.
@@ -244,10 +235,6 @@ LedManager LED_MANAGER (LED_MANAGER_HEARTBEAT, LED_MANAGER_INTERVAL);
 unsigned char THRUSTER_SOURCE_ADDRESS = BROADCAST_SOURCE_ADDRESS;
 unsigned long THRUSTER_SOURCE_ADDRESS_UPDATE_TIMESTAMP = 0UL;
 enum OPERATING_MODE_TYPE { SWITCH_INTERFACE, RELAY_INTERFACE } SELECTED_OPERATING_MODE = SWITCH_INTERFACE;
-unsigned int POWER_MODE = 0;
-unsigned int RETRACT_MODE = 0;
-unsigned int ANALOG_MODE = 0;;
-unsigned int COMMON_MODE = 0;
 
 unsigned long PGN128006_UPDATE_INTERVAL = PGN128006_StaticUpdateInterval;
 unsigned long PGN128007_UPDATE_INTERVAL = PGN128007_StaticUpdateInterval;
@@ -277,13 +264,19 @@ void setup() {
   for (unsigned int i = 0 ; i < ELEMENTCOUNT(opins); i++) pinMode(opins[i], OUTPUT);
 
   // Get the user-selected operating mode and the mode that was last configured.
-  SELECTED_OPERATING_MODE = (!digitalRead(GPIO_DEVICE_MODE))?SWITCH_INTERFACE:RELAY_INTERFACE;
+  SELECTED_OPERATING_MODE = (!digitalRead(GPIO_MODE))?SWITCH_INTERFACE:RELAY_INTERFACE;
   OPERATING_MODE_TYPE CONFIGURED_OPERATING_MODE = EEPROM.read(EEPROM_CONFIGURED_OPERATING_MODE);
   
-  // Decide whether or not to initialise or re-configure the module to
-  // suit the selected operating mode.
+  // Configure the module to suit the selected operating mode. If the
+  // operating mode has been changed, then this may require a bit of
+  // effort...
   switch (SELECTED_OPERATING_MODE) {
     case SWITCH_INTERFACE:
+      // We only transmit the Group Command PGN
+      TransmitMessages[0] = 126208UL;
+      // We only receive one PGN for keep alive
+      NMEA2000Handlers[0] = { 128006UL, &PGN128006Handler };
+      // Operating mode has changed
       if (CONFIGURED_OPERATING_MODE != SELECTED_OPERATING_MODE) {
         // Previously we were a relay interface or just never configured.
         EEPROM.write(EEPROM_CONFIGURED_OPERATING_MODE, SELECTED_OPERATING_MODE);
@@ -291,6 +284,10 @@ void setup() {
       }
       break;
     case RELAY_INTERFACE:
+      // We transmit all three thruster status PGNs.
+      TransmitMessages[0] = 128006UL;
+      TransmitMessages[1] = 128007UL;
+      TransmitMessages[2] = 128008UL;
       if (CONFIGURED_OPERATING_MODE != SELECTED_OPERATING_MODE) {
         // Previously we were a switch interface or just never configured.
         EEPROM.put(EEPROM_CONFIGURED_OPERATING_MODE, SELECTED_OPERATING_MODE);
@@ -304,6 +301,8 @@ void setup() {
         PGN128008v.setTotalMotorOperatingTime(DEFAULT_TOTAL_MOTOR_OPERATING_TIME);
         EEPROM.put(EEPROM_PGN128008, PGN128008v);
       }
+      break;
+    default:
       break;
   }
 
@@ -357,7 +356,6 @@ void loop() {
     #ifdef DEBUG_SERIAL
     Serial.print("Starting (N2K Source address: "); Serial.print(NMEA2000.GetN2kSource()); Serial.println(")");
     Serial.print("Operating mode: "); Serial.println(SELECTED_OPERATING_MODE?"OPERATE":"CONTROL");
-    Serial.print("Common mode: "); Serial.println(COMMON_MODE?"ON":"OFF");
     Serial.print("Thruster ID: "); Serial.println(PGN128006v.getThrusterIdentifier());
     #endif
     JUST_STARTED = false;
@@ -387,16 +385,19 @@ void loop() {
         case N2kDD473_ThrusterReady:
           digitalWrite(GPIO_STARBOARD_RELAY, 0);
           digitalWrite(GPIO_PORT_RELAY, 0);
+          digitalWrite(GPIO_COMMON_RELAY, 0);
           break;
         case N2kDD473_ThrusterToPORT:
-          digitalWrite(GPIO_STARBOARD_RELAY, 1);
-          digitalWrite(GPIO_PORT_RELAY, (COMMON_MODE?1:0));
+          digitalWrite(GPIO_PORT_RELAY, 1);
+          digitalWrite(GPIO_COMMON_RELAY, 1);
+          digitalWrite(GPIO_STARBOARD_RELAY, 0);
           checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
           if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
           break;
         case N2kDD473_ThrusterToSTARBOARD:
-          digitalWrite(GPIO_STARBOARD_RELAY, (COMMON_MODE?1:0));
-          digitalWrite(GPIO_PORT_RELAY, 1);
+          digitalWrite(GPIO_STARBOARD_RELAY, 1);
+          digitalWrite(GPIO_COMMON_RELAY, 1);
+          digitalWrite(GPIO_PORT_RELAY, 0);
           checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
           if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
           break;
@@ -443,30 +444,31 @@ void processSwitchInputs() {
   bool transmit = false;
 
   if ((PGN128006v.getCommandTimeout() != 0.0) && (now > deadline)) {
+
     if (!DEBOUNCER.channelState(GPIO_PORT_SWITCH) && DEBOUNCER.channelState(GPIO_STARBOARD_SWITCH)) {
       PGN128006v.setThrusterDirectionControl(N2kDD473_ThrusterToPORT);
       processAnalogControlInputs();
       transmit = true;
     }
+
     if (!DEBOUNCER.channelState(GPIO_STARBOARD_SWITCH) && DEBOUNCER.channelState(GPIO_PORT_SWITCH)) {
       PGN128006v.setThrusterDirectionControl(N2kDD473_ThrusterToSTARBOARD);
       processAnalogControlInputs();
       transmit = true;;
     }
-    if (POWER_MODE) {
-      tN2kDD002 powerEnable = (!DEBOUNCER.channelState(GPIO_POWER_SWITCH))?N2kDD002_On:N2kDD002_Off;
-      if (PGN128006v.getPowerEnable() != powerEnable) {
-        PGN128006v.setPowerEnable(powerEnable);
-        transmit = true;
-      }
+    
+    tN2kDD002 powerEnable = (!DEBOUNCER.channelState(GPIO_POWER_SWITCH))?N2kDD002_On:N2kDD002_Off;
+    if (PGN128006v.getPowerEnable() != powerEnable) {
+      PGN128006v.setPowerEnable(powerEnable);
+      transmit = true;
     }
-    if (RETRACT_MODE) {
-      tN2kDD474 thrusterRetractControl = (!DEBOUNCER.channelState(GPIO_RETRACT_SWITCH))?N2kDD474_Extend:N2kDD474_Retract;
-      if (PGN128006v.getThrusterRetractControl() != thrusterRetractControl) {
-        PGN128006v.setThrusterRetractControl(thrusterRetractControl);
-        transmit = true;
-      }
+  
+    tN2kDD474 thrusterRetractControl = (!DEBOUNCER.channelState(GPIO_RETRACT_SWITCH))?N2kDD474_Extend:N2kDD474_Retract;
+    if (PGN128006v.getThrusterRetractControl() != thrusterRetractControl) {
+      PGN128006v.setThrusterRetractControl(thrusterRetractControl);
+      transmit = true;
     }
+
     if (transmit) transmitThrusterControl();
 
     deadline = (now + (PGN128006v.getCommandTimeout() * 1000));
@@ -807,7 +809,7 @@ bool ISORequestHandler(unsigned long RequestedPGN, unsigned char Requester, int 
 
 void messageHandler(const tN2kMsg &N2kMsg) {
   int iHandler;
-  for (iHandler=0; NMEA2000Handlers[iHandler].PGN!=0 && !(N2kMsg.PGN==NMEA2000Handlers[iHandler].PGN); iHandler++);
+  for (iHandler = 0; (NMEA2000Handlers[iHandler].PGN != 0) && !(N2kMsg.PGN==NMEA2000Handlers[iHandler].PGN); iHandler++);
   if (NMEA2000Handlers[iHandler].PGN!=0) {
     NMEA2000Handlers[iHandler].Handler(N2kMsg); 
   }
