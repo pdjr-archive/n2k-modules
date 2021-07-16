@@ -26,6 +26,65 @@
 // START OF HANDLERS FOR PGN128006
 ///////////////////////////////////////////////////////////////////////
 
+bool GroupFunctionHandlerForPGN128006::HandleRequest(const tN2kMsg &N2kMsg, uint32_t TransmissionInterval, uint16_t TransmissionIntervalOffset, uint8_t  NumberOfParameterPairs, int iDev) {
+  tN2kGroupFunctionTransmissionOrPriorityErrorCode pec = GetRequestGroupFunctionTransmissionOrPriorityErrorCode(TransmissionInterval);
+  bool MatchFilter=true;
+  tN2kMsg N2kRMsg;
+  uint8_t Instance=0xff;
+
+  // Start to build response
+  SetStartAcknowledge(
+    N2kRMsg,
+    N2kMsg.Source,
+    PGN,
+    N2kgfPGNec_Acknowledge,  // What we actually should response as PGN error, if we have invalid field?
+    pec,
+    NumberOfParameterPairs
+  );
+  N2kRMsg.Destination=N2kMsg.Source;
+
+  if (NumberOfParameterPairs > 0) {
+    int i;
+    int index;
+    unsigned char field;
+    tN2kGroupFunctionParameterErrorCode FieldErrorCode;
+    bool FoundInvalidField = false;
+
+    StartParseRequestPairParameters(N2kMsg, index);
+    for (i = 0; (i < NumberOfParameterPairs) && (MatchFilter || tNMEA2000::IsBroadcast(N2kMsg.Destination)); i++) {
+      if (!FoundInvalidField) {
+        field = N2kMsg.GetByte(index);
+        switch (field) {
+          case 2:
+            break;
+          case 3:
+            break;
+          case 4:
+            break;
+          case 5:
+            break;
+          case 6:
+            break;
+          case 7:
+            break;
+          case 8:
+            break;
+          case 9:
+            break;
+          default:
+            FieldErrorCode = N2kgfpec_InvalidRequestOrCommandParameterField;
+            MatchFilter = false;
+            FoundInvalidField = true;
+            break;
+        }
+      } else {
+        FieldErrorCode = N2kgfpec_TemporarilyUnableToComply;
+      }
+      AddAcknowledgeParameter(N2kRMsg, i, FieldErrorCode);
+    }
+  }
+}
+
 bool GroupFunctionHandlerForPGN128006::HandleCommand(const tN2kMsg &N2kMsg, uint8_t PrioritySetting, uint8_t NumberOfParameterPairs, int iDev) {
   int i;
   int Index;

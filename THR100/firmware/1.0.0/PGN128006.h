@@ -8,6 +8,7 @@
 #define PGN128006_FieldCount 9
 #define PGN128006_StaticUpdateInterval 5000
 #define PGN128006_DynamicUpdateInterval 500
+#define PGN128006_CommandTransmitInterval = 250
 #define PGN128006_DefaultCommandTimeoutInterval 0.35
 
 /**********************************************************************
@@ -48,7 +49,7 @@ class PGN128006 {
     PGN128006() : properties {
       { false, { (uint8_t) 0 } }, // Field 0 - unused
       { false, { (uint8_t) 0 } }, // Field 1 - unused (SID)
-      { false, { .F02 = (uint8_t) 0 } }, // Field 2 - ThrusterIdentifier
+      { false, { .F02 = (uint8_t) 255 } }, // Field 2 - ThrusterIdentifier
       { true,  { .F03 = N2kDD473_OFF } }, // Field 3 - ThrusterDirectionControl
       { true,  { .F04 = N2kDD002_Off } }, // Field 4 - PowerEnable
       { true,  { .F05 = N2kDD474_OFF } }, // Field 5 - ThrusterRetractControl
@@ -61,6 +62,7 @@ class PGN128006 {
     PGN128006_GenericField getProperty(int index);
     void setProperty(int index, PGN128006_GenericField value);
     bool isDirty(int index);
+    void setDirty(int index);
     void setClean(int index);
 
     uint8_t getThrusterIdentifier();

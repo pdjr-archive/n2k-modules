@@ -42,7 +42,7 @@ class PGN128008 {
     PGN128008() : properties {
       { false, { 0 } }, // Field 0 - unused
       { false, { .F01 = 0 } }, // Field 1 - unused (SID)
-      { true, { .F02 = 0 } }, // Field 2 - ThrusterIdentifier
+      { true, { .F02 = 255 } }, // Field 2 - ThrusterIdentifier
       { true, { .F01 = 0 } }, // Field 3 - ThrusterMotorEvents
       { true, { .F04 = 0 } }, // Field 4 - MotorCurrent
       { true, { .F05 = 0.0 } }, // Field 5 - MotorTemperature

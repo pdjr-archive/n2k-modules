@@ -19,6 +19,10 @@ bool PGN128006::isDirty(int index) {
   return(this->properties[index].dirty);
 }
 
+void PGN128006::setDirty(int index) {
+  return(this->properties[index].dirty = true);
+}
+
 void PGN128006::setClean(int index) {
   this->properties[index].dirty = false;
 }

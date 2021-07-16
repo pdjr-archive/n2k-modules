@@ -252,7 +252,7 @@ void setup() {
 
   // Get the user-selected operating mode and the mode that was last configured.
   SELECTED_OPERATING_MODE = (!digitalRead(GPIO_MODE))?SWITCH_INTERFACE:RELAY_INTERFACE;
-  OPERATING_MODE_TYPE CONFIGURED_OPERATING_MODE = EEPROM.read(EEPROM_CONFIGURED_OPERATING_MODE);
+  OPERATING_MODE_TYPE CONFIGURED_OPERATING_MODE = EEPROM.get(EEPROM_CONFIGURED_OPERATING_MODE, CONFIGURED_OPERATING_MODE);
  
   // Configure the module to suit the selected operating mode. If the
   // operating mode has been changed, then this may require a bit of

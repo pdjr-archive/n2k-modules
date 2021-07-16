@@ -6,7 +6,7 @@
 #ifndef _PGN128778_H_
 #define _PGN128778_H_
 
-#define PGN128778_FieldCount 6
+#define PGN128778_FieldCount 7
 #define PGN128778_StaticUpdateInterval 5000
 #define PGN128778_DynamicUpdateInterval 500
 
@@ -16,10 +16,11 @@
 union PGN128778_GenericField {
   uint8_t F01;      // SID
   uint8_t F02;      // WindlassIdentifier
-  double F03;       // TotalMotorTime
+  tN2kDD477 F03;    // WindlassMonitoringEvents
   double F04;       // ControllerVoltage
   double F05;       // MotorCurrent
-  const F06;        // WindlassMonitoringEvents
+  double F06;       // TotalMotorTime
+  uint9_t F07;      // NMEAReserved
 };
 
 /**********************************************************************
@@ -35,20 +36,21 @@ class PGN128778 {
   public:
     static const int SID;
     static const int WindlassIdentifier;
-    static const int TotalMotorTime;
+    static const int WindlassMonitoringEvents;
     static const int ControllerVoltage;
     static const int MotorCurrent;
-    static const int WindlassMonitoringEvents;
+    static const int TotalMotorTime;
     
     PGN128778() : properties {
-      { false, { 0 } },               // Field 0 - unused
-      { false, { .F01 = 0 } },        // Field 1 - SID
-      { false, { .F02 = 0 } },        // Field 2 - WindlassIdentifier
-      { true,  { .F03 = 0.0 } },      // Field 3 - TotalMotorTime
-      { true,  { .F04 = 0.0 } },      // Field 4 - ControllerVoltage
-      { true,  { .F05 = 0.0 } },      // Field 5 - MotorCurrent
-      { true,  { 0 } }                // Field 6 - WindlassMonitoringEvents
-    } {};
+      { false, { 0 } },               // unused
+      { false, { .F01 = 0 } },        // SID
+      { false, { .F02 = 0 } },        // WindlassIdentifier
+      { true,  { 0 } },               // WindlassMonitoringEvents
+      { true,  { .F04 = 0.0 } },      // ControllerVoltage
+      { true,  { .F05 = 0.0 } },      // MotorCurrent
+      { true,  { .F06 = 0.0 } },      // TotalMotorTime
+      { false, { .F07 = 0 } }         // NMEAReserved
+      } {};
     
     PGN128778_GenericField getProperty(int index);
     void setProperty(int index, PGN128778_GenericField value);
@@ -57,17 +59,17 @@ class PGN128778 {
 
     uint8_t getSID();
     uint8_t getWindlassIdentifier();
-    double getTotalMotorTime();
+    tN2kDD477 getWindlassMonitoringEvents();
     double getControllerVoltage();
     double getMotorCurrent();
-    tN2kDD477 getWindlassMonitoringEvents();
+    double getTotalMotorTime();
     
     void setSID(uint8_t SID);
     void setWindlassIdentifier(uint8_t value);
-    void setTotalMotorTime(double value);
+    void setWindlassMonitoringEvents(tN2kDD477 value);
     void setControllerVoltage(double value);
     void setMotorCurrent(double value);
-    void setWindlassMonitoringEvents(tN2kDD477 value);
+    void setTotalMotorTime(double value);
     
   private:
     PGN128778_Field properties[PGN128778_FieldCount + 1];

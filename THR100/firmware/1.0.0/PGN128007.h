@@ -39,7 +39,7 @@ class PGN128007 {
 
     PGN128007() : properties {
       { false, { (uint8_t) 0 } }, // Field 0 - unused
-      { true, { .F01 = 0 } }, // Field 1 - ThrusterIdentifier
+      { true, { .F01 = 255 } }, // Field 1 - ThrusterIdentifier
       { true, { .F02 = N2kDD487_Hydraulic } }, // Field 2 - ThrusterMotorType
       { true, { .F04 = 0 } }, // Field 4 - MotorPowerRating
       { true, { .F05 = 0.0 } }, // Field 5 - MaximumMotorTemperatureRating

@@ -1,23 +1,27 @@
 /**********************************************************************
- * thrmod-1.0.0.cpp - THRMOD firmware version 1.0.0.
+ * THR100.cpp - THRMOD firmware version 1.0.0.
  * Copyright (c) 2021 Paul Reeve, <preeve@pdjr.eu>
  *
- * This firmware implements both ends of a thruster control combination
- * with the actual operating mode determined by the state of a hardware
- * switch. A practical implementation that makes of a physical user
- * control (like a joystick) will require two modules running this
- * firmware, one running in control mode and connected to the joystick
- * and one running in operate mode and connected to the thruster.
+ * This firmware is targetted at the SW6RL4 hardware platform and
+ * implements two module behaviours (SWITCH and RELAY) based on the
+ * NMEA 2000 Thruster Network Messages protocol (PGNs 128006, 128007
+ * and 128008). The particular behaviour expressed by the firmware is
+ * determined by the state of the SW6RL4 MODE DIP switch.
  * 
- * Communication between control and operator is implemented using the
- * NMEA 2000 Thruster Network Messages protocol based on PGNs 128006,
- * 128007 and 128008.
+ * The SWITCH behaviour allows the module to be used as a user
+ * interface to physical thruster controls and indicators. The firmware
+ * responds to switch and analogue inputs by transmitting control
+ * messages to a remote thruster. Status messages received from the
+ * remote thruster are used to operate the module's relay outputs and
+ * so can be to switch UI indicators and alarms.
  * 
- * The firmware dynamically supports just two protocol properties:
- * Thruster Direction Control and Total Motor Operating Time. A number
- * of static properties (see below) which describe thruster hardware
- * can be defined at compile time and will be reported by an operator
- * module.
+ * The RELAY behaviour allows the module to control a physical
+ * thruster. Relay outputs are operated in response to received command
+ * messages and sensor inputs are used to generate status report
+ * messages which are transmitted back to the contolling device.
+ * 
+ * Two modules, one in SWITCH mode and one in RELAY mode, can be used
+ * to control a physical thruster over the NMEA 2000 bus.
  */
 
 #include <Arduino.h>
@@ -34,6 +38,7 @@
 #include "PGN128007.h"
 #include "PGN128008.h"
 #include "GroupFunctionHandlers.h"
+#include <SW6RL4.h>
 
 /**********************************************************************
  * SERIAL DEBUG
@@ -84,19 +89,33 @@
  * GPIO pin definitions. We are using the generic SW6RL4 module, so
  * these are just aliases for that hardware's generic definitions.
  */
-#include <SW6RL4.h>
 
+
+// PIN DEFINITIONS THAT APPLY TO SWITCH AND RELAY OPERATING MODES /////
+//
+#define GPIO_POWER_LED GPIO_LED_1
+
+// SWITCH MODE PIN DEFINITIONS ////////////////////////////////////////
+//
 #define GPIO_STARBOARD_SWITCH GPIO_SWITCH_1
 #define GPIO_PORT_SWITCH GPIO_SWITCH_2
 #define GPIO_RETRACT_SWITCH GPIO_SWITCH_3
-#define GPIO_POWER_SWITCH GPIO_SWITCH_4
 #define GPIO_SPEED_ANALOG_IN GPIO_ANALOG_1
 #define GPIO_AZIMUTH_ANALOG_IN GPIO_ANALOG_2
-#define GPIO_TEMPERATURE_ANALOG GPIO_ANALOG_3
+#define GPIO_INDICATOR_PORT GPIO_RELAY_1
+#define GPIO_INDICATOR_STARBOARD GPIO_RELAY_2
+#define GPIO_INDICATOR_RETRACT GPIO_RELAY_3
+#define GPIO_ALARM_INDICATOR_RELAY GPIO_RELAY_4
+
+// RELAY MODE PIN DEFINITIONS /////////////////////////////////////////
+//
 #define GPIO_PORT_RELAY GPIO_RELAY_1
 #define GPIO_STARBOARD_RELAY GPIO_RELAY_2
 #define GPIO_COMMON_RELAY GPIO_RELAY_3
-#define GPIO_POWER_LED GPIO_LED_1
+#define GPIO_TEMPERATURE_ANALOG GPIO_ANALOG_1
+#define GPIO_PORT_SENSOR GPIO_SWITCH_1
+#define GPIO_STARTBOARD_SENSOR GPIO_SWITCH 2
+
 
 /**********************************************************************
  * DEVICE INFORMATION
@@ -143,14 +162,14 @@
  * THRUSTER PROGRAMMED DEFAULTS - these will differ for each target
  * installation and should be set in external configuration.
  */
- #define THRUSTER_SPEED_CONTROL 100
- #define THRUSTER_AZIMUTH_CONTROL 0.0
- #define THRUSTER_MOTOR_TYPE 4
- #define THRUSTER_MOTOR_CURRENT 0
- #define THRUSTER_MOTOR_TEMPERATURE 273
- #define THRUSTER_MOTOR_POWER_RATING 8000
- #define THRUSTER_MAXIMUM_MOTOR_TEMPERATURE_RATING 373.0
- #define THRUSTER_MAXIMUM_ROTATIONAL_SPEED 2000
+#define THRUSTER_SPEED_CONTROL 100
+#define THRUSTER_AZIMUTH_CONTROL 0.0
+#define THRUSTER_MOTOR_TYPE 4
+#define THRUSTER_MOTOR_CURRENT 0
+#define THRUSTER_MOTOR_TEMPERATURE 273
+#define THRUSTER_MOTOR_POWER_RATING 8000
+#define THRUSTER_MAXIMUM_MOTOR_TEMPERATURE_RATING 373.0
+#define THRUSTER_MAXIMUM_ROTATIONAL_SPEED 2000
  
 /**********************************************************************
  * Include the build.h header file which can be used to override any or
@@ -181,7 +200,11 @@ void processSwitchInputs();
 void processAnalogControlInputs();
 void transmitThrusterControl();
 void PGN128006Handler(const tN2kMsg &N2kMsg);
+void PGN128007Handler(const tN2kMsg &N2kMsg);
+void PGN128008Handler(const tN2kMsg &N2kMsg);
 void checkConnection();
+bool checkEvents();
+
 // OPERATING mode functions....
 void transmitStatus();
 void transmitPGN128006(unsigned char SID);
@@ -242,11 +265,21 @@ unsigned long PGN128008_UPDATE_INTERVAL = PGN128008_StaticUpdateInterval;
 unsigned long THRUSTER_START_TIME = 0UL;
 
 /**********************************************************************
- * The following three PGNs represent the thruster state.
+ * These three PGNs represent the controlled thruster state. In RELAY
+ * mode their properties are set in reponse to commands received and
+ * sensor inputs. In SWITCH mode they are updated each time a status
+ * update PGN is received from the remote thruster and are used to
+ * operate indicator outputs.
  */
 PGN128006 PGN128006v = PGN128006();
 PGN128007 PGN128007v = PGN128007();
 PGN128008 PGN128008v = PGN128008();
+
+/**********************************************************************
+ * This PGN is used in SWITCH mode to store the properties that will
+ * command the remote thruster.
+ */
+PGN128006 PGN128006c = PGN128006();
 
 /**********************************************************************
  * MAIN PROGRAM - setup()
@@ -265,34 +298,39 @@ void setup() {
 
   // Get the user-selected operating mode and the mode that was last configured.
   SELECTED_OPERATING_MODE = (!digitalRead(GPIO_MODE))?SWITCH_INTERFACE:RELAY_INTERFACE;
-  OPERATING_MODE_TYPE CONFIGURED_OPERATING_MODE = EEPROM.read(EEPROM_CONFIGURED_OPERATING_MODE);
+  OPERATING_MODE_TYPE CONFIGURED_OPERATING_MODE = EEPROM.read(EEPROM_CONFIGURED_OPERATING_MODE, CONFIGURED_OPERATING_MODE);
   
   // Configure the module to suit the selected operating mode. If the
   // operating mode has been changed, then this may require a bit of
   // effort...
   switch (SELECTED_OPERATING_MODE) {
     case SWITCH_INTERFACE:
-      // We only transmit the Group Command PGN
+      // We transmit PGN126208 and receive PGN128006, PGN128007 and
+      // PGN128008.
       TransmitMessages[0] = 126208UL;
-      // We only receive one PGN for keep alive
       NMEA2000Handlers[0] = { 128006UL, &PGN128006Handler };
-      // Operating mode has changed
+      NMEA2000Handlers[1] = { 128007UL, &PGN128007Handler };
+      NMEA2000Handlers[2] = { 128008UL, &PGN128008Handler };
+      // If operating mode has changed or we have never configured
+      // ourself, then set up EEPROM.
       if (CONFIGURED_OPERATING_MODE != SELECTED_OPERATING_MODE) {
         // Previously we were a relay interface or just never configured.
-        EEPROM.write(EEPROM_CONFIGURED_OPERATING_MODE, SELECTED_OPERATING_MODE);
+        EEPROM.put(EEPROM_CONFIGURED_OPERATING_MODE, SELECTED_OPERATING_MODE);
         EEPROM.write(EEPROM_SOURCE_ADDRESS, DEFAULT_SOURCE_ADDRESS);
       }
       break;
     case RELAY_INTERFACE:
-      // We transmit all three thruster status PGNs.
+      // We transmit status reports using PGN128006, PGN128007 and
+      // PGN128008 and receive commands via N2K's group function
+      // mechanism.
       TransmitMessages[0] = 128006UL;
       TransmitMessages[1] = 128007UL;
       TransmitMessages[2] = 128008UL;
+      NMEA2000.AddGroupFunctionHandler(new GroupFunctionHandlerForPGN128006(&NMEA2000, &updatePGN128006));
       if (CONFIGURED_OPERATING_MODE != SELECTED_OPERATING_MODE) {
         // Previously we were a switch interface or just never configured.
         EEPROM.put(EEPROM_CONFIGURED_OPERATING_MODE, SELECTED_OPERATING_MODE);
         EEPROM.write(EEPROM_SOURCE_ADDRESS, DEFAULT_SOURCE_ADDRESS);
-        PGN128007v.setThrusterIdentifier(0);
         PGN128007v.setThrusterMotorType(THRUSTER_MOTOR_TYPE);
         PGN128007v.setMotorPowerRating(THRUSTER_MOTOR_POWER_RATING);
         PGN128007v.setMaximumMotorTemperatureRating(THRUSTER_MAXIMUM_MOTOR_TEMPERATURE_RATING);
@@ -301,6 +339,7 @@ void setup() {
         PGN128008v.setTotalMotorOperatingTime(DEFAULT_TOTAL_MOTOR_OPERATING_TIME);
         EEPROM.put(EEPROM_PGN128008, PGN128008v);
       }
+      EEPROM.get(EEPROM_PGN128007, PGN128007v);
       break;
     default:
       break;
@@ -314,6 +353,7 @@ void setup() {
   PGN128006v.setThrusterIdentifier(ADDRESS_SWITCH.value());
   PGN128007v.setThrusterIdentifier(ADDRESS_SWITCH.value());
   PGN128008v.setThrusterIdentifier(ADDRESS_SWITCH.value());
+  PGN128006c.setThrusterIdentifier(ADDRESS_SWITCH.value());
   #ifdef DEBUG_SERIAL
     PGN128007v.serialDump();
   #endif
@@ -332,7 +372,6 @@ void setup() {
   NMEA2000.EnableForward(false); // Disable all msg forwarding to USB (=Serial)
   NMEA2000.ExtendTransmitMessages(TransmitMessages); // Tell library which PGNs we transmit
   NMEA2000.SetISORqstHandler(&ISORequestHandler);
-  NMEA2000.AddGroupFunctionHandler(new GroupFunctionHandlerForPGN128006(&NMEA2000, &updatePGN128006));
   NMEA2000.SetMsgHandler(messageHandler);
   NMEA2000.Open();
 }
@@ -374,33 +413,40 @@ void loop() {
       DEBOUNCER.debounce();
       if (JUST_STARTED) {
         transmitThrusterControl();
+        // TODO: Ask remote thruster for PGN128007.
       } else {
         processSwitchInputs();
       }
       checkConnection();
+      digitalWrite(GPIO_ALARM_INDICATOR_RELAY, checkEvents());
       break;
     case RELAY_INTERFACE: // Module is an OPERATING device
-      switch (PGN128006v.getThrusterDirectionControl()) {
-        case N2kDD473_OFF:
-        case N2kDD473_ThrusterReady:
-          digitalWrite(GPIO_STARBOARD_RELAY, 0);
-          digitalWrite(GPIO_PORT_RELAY, 0);
-          digitalWrite(GPIO_COMMON_RELAY, 0);
-          break;
-        case N2kDD473_ThrusterToPORT:
-          digitalWrite(GPIO_PORT_RELAY, 1);
-          digitalWrite(GPIO_COMMON_RELAY, 1);
-          digitalWrite(GPIO_STARBOARD_RELAY, 0);
-          checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
-          if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
-          break;
-        case N2kDD473_ThrusterToSTARBOARD:
-          digitalWrite(GPIO_STARBOARD_RELAY, 1);
-          digitalWrite(GPIO_COMMON_RELAY, 1);
-          digitalWrite(GPIO_PORT_RELAY, 0);
-          checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
-          if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
-          break;
+      if (PGN128006v.getPowerEnable() == N2kDD002_On) {
+        switch (PGN128006v.getThrusterDirectionControl()) {
+          case N2kDD473_ThrusterToPORT:
+            digitalWrite(GPIO_PORT_RELAY, 1);
+            digitalWrite(GPIO_COMMON_RELAY, 1);
+            digitalWrite(GPIO_STARBOARD_RELAY, 0);
+            checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
+            if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
+            break;
+          case N2kDD473_ThrusterToSTARBOARD:
+            digitalWrite(GPIO_STARBOARD_RELAY, 1);
+            digitalWrite(GPIO_COMMON_RELAY, 1);
+            digitalWrite(GPIO_PORT_RELAY, 0);
+            checkTimeout((unsigned long) PGN128006v.getCommandTimeout() * 1000);
+            if (THRUSTER_START_TIME == 0UL) THRUSTER_START_TIME = millis();
+            break;
+          default:
+            digitalWrite(GPIO_PORT_RELAY, 0);
+            digitalWrite(GPIO_STARBOARD_RELAY, 0);
+            digitalWrite(GPIO_COMMON_RELAY, 0);
+            break;
+        }
+      } else {
+        digitalWrite(GPIO_PORT_RELAY, 0);
+        digitalWrite(GPIO_STARBOARD_RELAY, 0);
+        digitalWrite(GPIO_COMMON_RELAY, 0);
       }
       // If we have stopped receiving operating commands, then stop
       // thrusters and update and save total run time.
@@ -432,7 +478,8 @@ void loop() {
 ///////////////////////////////////////////////////////////////////////
 
 /**********************************************************************
- * processSwitchInputs() should be called directly from loop(). If a
+ * processSwitchInputs() should be called directly from loop() to
+ * update the properties of PGN128006c from switch and sensor inputs. If a
  * switch input is active (i.e. a joystick or whatever is being
  * operated) the function uses a simple elapse timer to repeatedly
  * transmit direction controls to the configured remote thruster at the
@@ -443,35 +490,31 @@ void processSwitchInputs() {
   unsigned long now = millis();
   bool transmit = false;
 
-  if ((PGN128006v.getCommandTimeout() != 0.0) && (now > deadline)) {
+  if ((PGN128006_CommandTransmitInterval > 0) && (now > deadline)) {
 
     if (!DEBOUNCER.channelState(GPIO_PORT_SWITCH) && DEBOUNCER.channelState(GPIO_STARBOARD_SWITCH)) {
-      PGN128006v.setThrusterDirectionControl(N2kDD473_ThrusterToPORT);
+      PGN128006c.setThrusterDirectionControl(N2kDD473_ThrusterToPORT);
+      PGN128006c.setPowerEnable(N2kDD002_On);
       processAnalogControlInputs();
       transmit = true;
     }
 
     if (!DEBOUNCER.channelState(GPIO_STARBOARD_SWITCH) && DEBOUNCER.channelState(GPIO_PORT_SWITCH)) {
-      PGN128006v.setThrusterDirectionControl(N2kDD473_ThrusterToSTARBOARD);
+      PGN128006c.setThrusterDirectionControl(N2kDD473_ThrusterToSTARBOARD);
+      PGN128006c.setPowerEnable(N2kDD002_On);
       processAnalogControlInputs();
       transmit = true;;
     }
     
-    tN2kDD002 powerEnable = (!DEBOUNCER.channelState(GPIO_POWER_SWITCH))?N2kDD002_On:N2kDD002_Off;
-    if (PGN128006v.getPowerEnable() != powerEnable) {
-      PGN128006v.setPowerEnable(powerEnable);
-      transmit = true;
-    }
-  
     tN2kDD474 thrusterRetractControl = (!DEBOUNCER.channelState(GPIO_RETRACT_SWITCH))?N2kDD474_Extend:N2kDD474_Retract;
-    if (PGN128006v.getThrusterRetractControl() != thrusterRetractControl) {
-      PGN128006v.setThrusterRetractControl(thrusterRetractControl);
+    if (PGN128006c.getThrusterRetractControl() != thrusterRetractControl) {
+      PGN128006c.setThrusterRetractControl(thrusterRetractControl);
       transmit = true;
     }
 
     if (transmit) transmitThrusterControl();
 
-    deadline = (now + (PGN128006v.getCommandTimeout() * 1000));
+    deadline = (now + PGN128006_CommandTransmitInterval);
   }
 }
 
@@ -482,25 +525,26 @@ void processSwitchInputs() {
 void processAnalogControlInputs() {
   int value = adc->analogRead(GPIO_SPEED_ANALOG_IN);
   if (value != ADC_ERROR_VALUE) {
-    PGN128006v.setSpeedControl((uint8_t) ((value / adc->adc0->getMaxValue()) * 100));
+    PGN128006c.setSpeedControl((uint8_t) ((value / adc->adc0->getMaxValue()) * 100));
   }
   value = adc->analogRead(GPIO_AZIMUTH_ANALOG_IN);
   if (value != ADC_ERROR_VALUE) {
-    PGN128006v.setAzimuthControl((value / adc->adc0->getMaxValue()) * 100);
+    PGN128006c.setAzimuthControl((value / adc->adc0->getMaxValue()) * 100);
   }
 }
 
 /**********************************************************************
  * transmitThrusterControl() transmits a PGN 126208 Command Group
- * Function containing a PGN 128006 Thruster Control Status update to
- * the device specifically identified by THRUSTER_SOURCE_ADDRESS.
+ * Function to the thruster identified by THRUSTER_SOURCE_ADDRESS using
+ * the PGN128006c variable as the command property source.
  * 
- * The transmitted command will always contain ThrusterIdentifier and
- * ThrusterDirectionControl properties, other property values will only
- * be transmitted if they have been updated since their last transmit.
+ * The N2K specification requires that ThrusterIdentifier,
+ * ThrusterDirectionControl, PowerEnable and SpeedControl fields are
+ * always transmitted, Other fields will only be transmitted if their
+ * value has changed since the last transmit.
  */
 void transmitThrusterControl() {
-  if (THRUSTER_SOURCE_ADDRESS != BROADCAST_SOURCE_ADDRESS) {
+  if (ADDRESS_SWITCH.value() != BROADCAST_SOURCE_ADDRESS) {
     tN2kMsg N2kMsg;
     N2kMsg.SetPGN(126208UL);                // Command Group Function 
     N2kMsg.Priority = 2;                    // High priority
@@ -509,66 +553,81 @@ void transmitThrusterControl() {
     N2kMsg.Add3ByteInt(128006UL);           // Thruster Control Status PGN
     N2kMsg.AddByte(0xF8);                   // Retain existing priority
 
-    int dirtyCount = 2; // We always transmit F02 ThrusterIdentifier and F03 ThrusterDirectionControl
-    for (int i = 4; i <= PGN128006_FieldCount; i++) if (PGN128006v.isDirty(i)) dirtyCount++;
+    PGN128006c.setDirty(2);
+    PGN128006c.setDirty(3);
+    PGN128006c.setDirty(4);
+    PGN128006c.setDirty(6);
 
-    N2kMsg.AddByte(dirtyCount);                   // Number of parameter pairs
-    for (int i = 2; i<= PGN128006_FieldCount; i++) {
-      switch (i) {
-        case 2:
-          N2kMsg.AddByte(0x02);                   // Parameter 1 - Field 2 (Thruster Identifier)
-          N2kMsg.AddByte(PGN128006v.getThrusterIdentifier());
-          break;
-        case 3:
-          N2kMsg.AddByte(0x03);                   // Parameter 2 - Field 3 (Thruster Direction Control)
-          N2kMsg.AddByte(PGN128006v.getThrusterDirectionControl());
-          break;
-        case 4:
-          if (PGN128006v.isDirty(i)) {
-            N2kMsg.AddByte(0x04);                   // Parameter 3 - Field 4 (Power Control)
-            N2kMsg.AddByte(PGN128006v.getPowerEnable());
-            PGN128006v.setClean(i);
-          }
-          break;
-        case 5:
-          if (PGN128006v.isDirty(i)) {
-            N2kMsg.AddByte(0x05);                   // Parameter 4 - Field 5 (Thruster Retract Control)
-            N2kMsg.AddByte(PGN128006v.getThrusterRetractControl());
-            PGN128006v.setClean(i);
-          }
-          break;
-        case 6:
-          if (PGN128006v.isDirty(i)) {
-            N2kMsg.AddByte(0x06);                   // Parameter 5 - Field 6 (Speed Control)
-            N2kMsg.AddByte(PGN128006v.getSpeedControl());
-            PGN128006v.setClean(i);
-          }
-          break;
-        case 7:
-          if (PGN128006v.isDirty(i)) {
-            N2kMsg.AddByte(0x07);                   // Parameter 6 - Field 7 (Thruster Control Events)
-            N2kMsg.AddByte(PGN128006v.getThrusterControlEvents().Events);
-            PGN128006v.setClean(i);
-          }
-          break;
-        case 8:
-          if (PGN128006v.isDirty(i)) {
-            N2kMsg.AddByte(0x08);                   // Parameter 7 - Field 8 (Command Timeout Interval)
-            N2kMsg.Add1ByteDouble(PGN128006v.getCommandTimeout(), 0.005);
-            PGN128006v.setClean(i);
-          }
-          break;
-        case 9:
-          if (PGN128006v.isDirty(i)) {
-            N2kMsg.AddByte(0x09);                   // Parameter 8 - Field 9 (Azimuth Control)
-            N2kMsg.Add2ByteDouble(PGN128006v.getAzimuthControl(), 0.0001);
-            PGN128006v.setClean(i);
-          }
-          break;
+    int dirtyCount = 0;
+    for (int i = 2; i <= PGN128006_FieldCount; i++) if (PGN128006c.isDirty(i)) dirtyCount++;
+
+    if (dirtyCount > 0) {
+      N2kMsg.AddByte(dirtyCount);                   // Number of parameter pairs
+      for (int i = 2; i<= PGN128006_FieldCount; i++) {
+        switch (i) {
+          case 2:
+            if (PGN128006c.isDirty(i)) {
+              N2kMsg.AddByte(i);                   // Parameter 1 - Field 2 (Thruster Identifier)
+              N2kMsg.AddByte(PGN128006c.getThrusterIdentifier());
+              PGN128006c.setClean(i);
+            }
+            break;
+          case 3:
+            if (PGN128006c.isDirty()) {
+              N2kMsg.AddByte(i);                   // Parameter 2 - Field 3 (Thruster Direction Control)
+              N2kMsg.AddByte(PGN128006c.getThrusterDirectionControl());
+              PGN128006c.setClean(i);
+            break;
+          case 4:
+            if (PGN128006c.isDirty(i)) {
+              N2kMsg.AddByte(i);                   // Parameter 3 - Field 4 Power Enable
+              N2kMsg.AddByte(PGN128006c.getPowerEnable());
+              PGN128006c.setClean(i);
+            }
+            break;
+          case 5:
+            if (PGN128006c.isDirty(i)) {
+              N2kMsg.AddByte(0x05);                   // Parameter 4 - Field 5 (Thruster Retract Control)
+              N2kMsg.AddByte(PGN128006c.getThrusterRetractControl());
+              PGN128006c.setClean(i);
+            }
+            break;
+          case 6:
+            if (PGN128006c.isDirty(i)) {
+              N2kMsg.AddByte(0x06);                   // Parameter 5 - Field 6 (Speed Control)
+              N2kMsg.AddByte(PGN128006c.getSpeedControl());
+              PGN128006c.setClean(i);
+            }
+            break;
+          case 7:
+            if (PGN128006c.isDirty(i)) {
+              N2kMsg.AddByte(0x07);                   // Parameter 6 - Field 7 (Thruster Control Events)
+              N2kMsg.AddByte(PGN128006c.getThrusterControlEvents().Events);
+              PGN128006c.setClean(i);
+            }
+            break;
+          case 8:
+            if (PGN128006c.isDirty(i)) {
+              N2kMsg.AddByte(0x08);                   // Parameter 7 - Field 8 (Command Timeout Interval)
+              N2kMsg.Add1ByteDouble(PGN128006c.getCommandTimeout(), 0.005);
+              PGN128006c.setClean(i);
+            }
+            break;
+          case 9:
+            if (PGN128006c.isDirty(i)) {
+              N2kMsg.AddByte(0x09);                   // Parameter 8 - Field 9 (Azimuth Control)
+              N2kMsg.Add2ByteDouble(PGN128006c.getAzimuthControl(), 0.0001);
+              PGN128006c.setClean(i);
+            }
+            break;
+          default:
+            break;
+        }
       }
+      NMEA2000.SendMsg(N2kMsg);
+      LED_MANAGER.operate(GPIO_POWER_LED, 1, 1);
     }
-    NMEA2000.SendMsg(N2kMsg);
-    LED_MANAGER.operate(GPIO_POWER_LED, 1, 1);
+    }
   }
 }
 
@@ -592,11 +651,71 @@ void PGN128006Handler(const tN2kMsg &N2kMsg) {
   double CommandTimeout;
   double AzimuthControl;
 
-  if (parseN2kPGN128006(N2kMsg, SID, ThrusterIdentifier, ThrusterDirectionControl, PowerEnable, ThrusterRetractControl, SpeedControl, ThrusterControlEvents, CommandTimeout, AzimuthControl)) {
-    if (ThrusterIdentifier == PGN128006v.getThrusterIdentifier()) {
+  if (ParseN2kPGN128006(N2kMsg, SID, ThrusterIdentifier, ThrusterDirectionControl, PowerEnable, ThrusterRetractControl, SpeedControl, ThrusterControlEvents, CommandTimeout, AzimuthControl)) {
+    if (ThrusterIdentifier == ADDRESS_SWITCH.value()) {
       THRUSTER_SOURCE_ADDRESS = (unsigned char) N2kMsg.Source;
       THRUSTER_SOURCE_ADDRESS_UPDATE_TIMESTAMP = millis();
+      PGN128007v.setSID(SID);
+      PGN128007v.setThrusterIdentifier(ThrusterIdentifier);
+      PGN128006v.setThrusterDirectionControl(ThrusterDirectioControl);
+      PGN128006v.setPowerEnable(PowerEnable);
+      PGN128006v.setThrusterRetractControl(ThrusterRetractControl);
+      PGN128006v.setSpeedControl(SpeedControl);
+      PGN128006v.setThrusterControlEvents(ThrusterControlEvents);
+      PGN128006v.setCommandTimeout(CommandTimeout);
+      PGN128006.AzimuthControl(AzimuthControl);
       LED_MANAGER.operate(GPIO_POWER_LED, 1, 0);
+    }
+    // TODO: Validate these against PGN128007c.
+  }
+}
+
+/**********************************************************************
+ * PGN128007Handler() accepts PGN 128007 (Thruster Information)
+ * messages, accepting only those that originate from a thruster with
+ * an identifier that matches the hardware DIP switch address and
+ * unpacking received properties into PGN128007v.
+ */ 
+PGN128007Handler(const tN2kMsg &N2kMsg) {
+  uint8_t ThrusterIdentifier;
+  DD487 MotorPowerType;
+  int MotorPowerRating,
+  double MaximumMotorTemperatureRating;
+  double MaximumRotationalSpeed;
+
+  if (ParseN2kPGN128007(N2kMsg, ThrusterIdentifier, MotorPowerType, MotorPowerRating, MaximumMotorTemperatureRating, MaximumRotationalSpeed)) {
+    if (ThrusterIdentifier == ADDRESS_SWITCH.value()) {
+      PGN128007v.setThrusterIdentifier(ThrusterIdentifier);
+      PGN128007v.setMotorPowerType(MotorPowerType);
+      PGN128007v.setMotorPowerRating(MotorPowerRating);
+      PGN128007v.setMaximumMotorTemperatureRating = MaximumMotorTemperatureRating;
+      PGN128007v.setMaximumRotationalSpeed = MaximumRotationalSpeed();
+    } 
+  }
+}
+
+/**********************************************************************
+ * PGN128008Handler() accepts PGN 128008 (Thruster Motor Status)
+ * messages, accepting only those that originate from a thruster with
+ * an identifier that matches the hardware DIP switch address. Field
+ * values are unpacked into PGN128008v.
+ */
+void PGN128008Handler(const tN2kMsg &N2kMsg) {
+  unsigned char SID;
+  unsigned char ThrusterIdentifier;
+  tN2kDD471 ThrusterMotorEvents;
+  unsigned char MotorCurrent;
+  double MotorTemperature;
+  unsigned int TotalMotorOperatingTime;
+  bool alarm = false;
+
+  if (ParseN2kPGN128008(N2kMsg, SID, ThrusterIdentifier, ThrusterMotorEvents, MotorCurrent, MotorTemperature, TotalMotorOperatingTime)) {
+    if (ThrusterIdentifier == ADDRESS_SWITCH.value()) {
+      PGN128008v.setSID(SID);
+      PGN128008v.setThrusterMotorEvents(ThrusterMotorEvents);
+      PGN128008v.setMotorCurrent(MotorCurrent);
+      PGN128008v.setMotorTemperature(MotorTemperature);
+      PGN128008v.setTotalMotorOperatingTime(TotalMotorOperatingTime);
     }
   }
 }
@@ -619,12 +738,27 @@ void checkConnection() {
   }
 }
 
+/**********************************************************************
+ * checkEvents() should be called directly from loop. It examines PGNs
+ * received from the controlled thruster, looking for event field
+ * problems, returning true if problems are found otherwise false.
+ */
+void checkEvents() {
+  bool retval = false;
+  if ((PGN128006v.getThrusterIdentifier() != INSTANCE_UNDEFINED) && (PGN128008v.getThrusterIdentifier() != INSTANCE_UNDEFINED)) {
+    // We have received all status PGNs from the remote thruster,d so we
+    // can check 128006 and 128008 against 128007.
+    if (PGN128006v.getThrusterControlEvents() || PGN128008v.getThrusterMotorEvents().Events()) retval = true;
+    return(retval);
+  }
+} 
+
 ///////////////////////////////////////////////////////////////////////
-// END OF CONTROL MODE FUNCTIONS
+// END OF SWITCH MODE FUNCTIONS
 ///////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////
-// START OF OPERATOR MODE FUNCTIONS
+// START OF RELAY MODE FUNCTIONS
 ///////////////////////////////////////////////////////////////////////
 
 /**********************************************************************
@@ -715,7 +849,7 @@ void transmitPGN128008(unsigned char SID) {
  * thruster is being commanded to operate and otherwise false.
  */
 bool isOperating() {
-  return((PGN128006v.getThrusterDirectionControl() == N2kDD473_ThrusterToPORT) ||  (PGN128006v.getThrusterDirectionControl() == N2kDD473_ThrusterToSTARBOARD));
+  return(PGN128006v.getPowerEnable() == N2kDD002_On) && ((PGN128006v.getThrusterDirectionControl() == N2kDD473_ThrusterToPORT) || (PGN128006v.getThrusterDirectionControl() == N2kDD473_ThrusterToSTARBOARD)));
 }
 
 /**********************************************************************
@@ -785,6 +919,10 @@ void updatePGN128006(PGN128006_Field fields[]) {
         break;
     }
   }
+  // From the N2k specification: "In addition to the required
+  // Acknowledge Group Function, this PGN shall be sent as response
+  // to any Command Group Function."
+  transmitPGN128006();
 }
 
 /**********************************************************************
@@ -807,6 +945,10 @@ bool ISORequestHandler(unsigned long RequestedPGN, unsigned char Requester, int 
 // END OF OPERATOR MODE FUNCTIONS
 ///////////////////////////////////////////////////////////////////////
 
+/**********************************************************************
+ * Processes incoming messages using the NMEA2000Handlers jump vector
+ * to invoke handlers registered for specific PGNs.
+ */
 void messageHandler(const tN2kMsg &N2kMsg) {
   int iHandler;
   for (iHandler = 0; (NMEA2000Handlers[iHandler].PGN != 0) && !(N2kMsg.PGN==NMEA2000Handlers[iHandler].PGN); iHandler++);
