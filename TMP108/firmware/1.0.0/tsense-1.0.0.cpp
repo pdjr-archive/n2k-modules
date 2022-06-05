@@ -53,9 +53,9 @@
  * GPIO pin definitions for the Teensy 3.2 MCU
  */
 
-#define GPIO_INSTANCE_LED 0
+#define GPIO_SETPOINT_LED 0
 #define GPIO_SOURCE_LED 1
-#define GPIO_SETPOINT_LED 2
+#define GPIO_INSTANCE_LED 2
 #define GPIO_ENCODER_BIT7 5
 #define GPIO_ENCODER_BIT6 6
 #define GPIO_ENCODER_BIT5 7
