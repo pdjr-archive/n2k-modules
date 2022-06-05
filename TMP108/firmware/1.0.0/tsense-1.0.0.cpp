@@ -65,7 +65,7 @@
 #define GPIO_ENCODER_BIT1 11
 #define GPIO_ENCODER_BIT0 12
 #define GPIO_BOARD_LED 13
-// Start of analogue pinns - AX addresses are defined by the ADC library.
+// Start of analogue pins - AX addresses are defined by the ADC library.
 #define GPIO_SENSOR0 A0
 #define GPIO_SENSOR1 A1
 #define GPIO_SENSOR2 A2
