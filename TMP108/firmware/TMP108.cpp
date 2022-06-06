@@ -14,7 +14,6 @@
  */
 
 #include <Arduino.h>
-#include <ADC.h>
 #include <EEPROM.h>
 #include <NMEA2000_CAN.h>
 #include <N2kTypes.h>
@@ -143,14 +142,13 @@
 #define LED_MANAGER_HEARTBEAT 300         // Number of ms on / off
 #define LED_MANAGER_INTERVAL 10           // Number of heartbeats between repeats
 #define PROGRAMME_TIMEOUT_INTERVAL 20000  // Allow 20s to complete each programme step
-#define SENSOR_PROCESS_INTERVAL 5000      // Number of ms between N2K transmits
+#define SENSOR_PROCESS_INTERVAL 2000      // Number of ms between sensor processing
 #define SENSOR_VOLTS_TO_KELVIN 3.3        // Conversion factor for LM335 temperature sensors
 
 /**********************************************************************
  * Declarations of local functions.
  */
 #ifdef DEBUG_SERIAL
-void debugDump();
 void dumpSensorConfiguration();
 #endif
 void messageHandler(const tN2kMsg&);
@@ -204,13 +202,13 @@ Sensor SENSORS[ELEMENTCOUNT(SENSOR_PINS)];
 /**********************************************************************
  * ADC converter service.
  */
-ADC *adc = new ADC();
+//ADC *adc = new ADC();
 
 /**********************************************************************
  * State machine definitions
  */
 enum MACHINE_STATES { NORMAL, PRG_START, PRG_ACCEPT_INSTANCE, PRG_ACCEPT_SOURCE, PRG_ACCEPT_SETPOINT, PRG_FINALISE, PRG_CANCEL };
-static MACHINE_STATES MACHINE_STATE = NORMAL;
+static MACHINE_STATES MACHINE_STATE = PRG_CANCEL;
 unsigned long MACHINE_RESET_TIMER = 0UL;
 
 /**********************************************************************
@@ -222,14 +220,15 @@ void setup() {
   delay(DEBUG_SERIAL_START_DELAY);
   #endif
 
-  // Set the mode of all digital GPIO pins.
+  // Set the mode of all GPIO pins.
   int ipins[] = GPIO_INPUT_PINS;
   int opins[] = GPIO_OUTPUT_PINS;
   for (unsigned int i = 0 ; i < ELEMENTCOUNT(ipins); i++) pinMode(ipins[i], INPUT_PULLUP);
   for (unsigned int i = 0 ; i < ELEMENTCOUNT(opins); i++) pinMode(opins[i], OUTPUT);
-
-  // Initialise SENSORS array.
-  for (unsigned int i = 0; i < ELEMENTCOUNT(SENSOR_PINS); i++) SENSORS[i].invalidate(SENSOR_PINS[i]); 
+  for (unsigned int i = 0 ; i < ELEMENTCOUNT(SENSOR_PINS); i++) pinMode(SENSOR_PINS[i], INPUT);
+  
+  // Initialise SENSORS array (and assign GPIO addresses)
+  for (unsigned int i = 0; i < ELEMENTCOUNT(SENSORS); i++) SENSORS[i].invalidate(SENSOR_PINS[i]);
   
   // We assume that a new host system has its EEPROM initialised to all
   // 0xFF. We test by reading a byte that in a configured system should
@@ -326,20 +325,22 @@ void loop() {
 void processSensors() {
   static unsigned long deadline = 0UL;
   unsigned long now = millis();
-
+  
   if (now > deadline) {
-    for (unsigned int sensor = 0; sensor < 8; sensor++) {
-      if (SENSORS[sensor].getInstance() != 0xff) {
-        int value = adc->analogRead(SENSORS[sensor].getGpio());
-        if (value != ADC_ERROR_VALUE) {
-          double kelvin = ((value * SENSOR_VOLTS_TO_KELVIN) / adc->adc0->getMaxValue()) * 100;
-          SENSORS[sensor].setTemperature(kelvin);
-          #ifdef DEBUG_SERIAL
-          Serial.print("Sensor "); Serial.print(sensor); Serial.print(": ");
-          Serial.print(kelvin - 273.0); Serial.println ("C ");
-          #endif
-          transmitPgn130316(SENSORS[sensor]); 
-        }
+    for (unsigned int sensorIndex = 0; sensorIndex < ELEMENTCOUNT(SENSORS); sensorIndex++) {
+      if (SENSORS[sensorIndex].getInstance() != 0xff) {
+        #ifdef DEBUG_SERIAL
+        Serial.println();
+        Serial.print("Sensor "); Serial.print(sensorIndex);
+        Serial.print(": gpio = "); Serial.print(SENSORS[sensorIndex].getGpio());
+        #endif
+        int value = analogRead(SENSORS[sensorIndex].getGpio());
+        double kelvin = ((value * SENSOR_VOLTS_TO_KELVIN) / 1024) * 100;
+        SENSORS[sensorIndex].setTemperature(kelvin);
+        #ifdef DEBUG_SERIAL
+        Serial.print(", temperature = "); Serial.print(kelvin - 273.0); Serial.print("C ");
+        #endif
+        transmitPgn130316(SENSORS[sensorIndex]); 
       }
     }
     deadline = (now + SENSOR_PROCESS_INTERVAL);
@@ -492,27 +493,18 @@ void messageHandler(const tN2kMsg &N2kMsg) {
   }
 }
 
-#ifdef DEBUG_SERIAL
-void debugDump() {
-  static unsigned long deadline = 0UL;
-  unsigned long now = millis();
-  if (now > deadline) {
-    deadline = (now + DEBUG_SERIAL_INTERVAL);
-  }
-}
-
 void dumpSensorConfiguration() {
   for (unsigned int i = 0; i < ELEMENTCOUNT(SENSORS); i++) {
     Serial.println();
     Serial.print("Sensor "); Serial.print(i); Serial.print(": ");
+    Serial.print("GPIO: "); Serial.print(SENSORS[i].getGpio()); Serial.print(", ");
     if (SENSORS[i].getInstance() == 0xFF) {
       Serial.print("disabled");
     } else {
-      Serial.print("\"instance\": "); Serial.print(SENSORS[i].getInstance()); Serial.print(", ");
-      Serial.print("\"source\": "); Serial.print(SENSORS[i].getSource()); Serial.print(", ");
-      Serial.print("\"setPoint\": "); Serial.print(SENSORS[i].getSetPoint());
+      Serial.print("instance: "); Serial.print(SENSORS[i].getInstance()); Serial.print(", ");
+      Serial.print("source: "); Serial.print(SENSORS[i].getSource()); Serial.print(", ");
+      Serial.print("setPoint: "); Serial.print(SENSORS[i].getSetPoint());
     }
   }
   Serial.println();
 }
-#endif
