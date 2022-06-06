@@ -460,8 +460,9 @@ void processMachineState() {
  */
 
 void transmitPgn130316(Sensor sensor) {
+  static unsigned char sid = 0;
   tN2kMsg N2kMsg;
-  SetN2kPGN130316(N2kMsg, 0, sensor.getInstance(), sensor.getSource(), sensor.getTemperature(), sensor.getSetPoint());
+  SetN2kPGN130316(N2kMsg, sid++, sensor.getInstance(), sensor.getSource(), sensor.getTemperature(), sensor.getSetPoint());
   NMEA2000.SendMsg(N2kMsg);
   LED_MANAGER.operate(GPIO_POWER_LED, 0, 1);
 }  
