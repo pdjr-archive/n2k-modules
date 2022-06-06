@@ -503,15 +503,16 @@ void debugDump() {
 
 void dumpSensorConfiguration() {
   for (unsigned int i = 0; i < ELEMENTCOUNT(SENSORS); i++) {
+    Serial.println();
     Serial.print("Sensor "); Serial.print(i); Serial.print(": ");
     if (SENSORS[i].getInstance() == 0xFF) {
-      Serial.println("disabled");
+      Serial.print("disabled");
     } else {
-      Serial.print("\"instance\": "); Serial.print(SENSORS[i].getInstance()); Serial.print(",");
-      Serial.print("\"source\": "); Serial.print(SENSORS[i].getSource()); Serial.print(",");
+      Serial.print("\"instance\": "); Serial.print(SENSORS[i].getInstance()); Serial.print(", ");
+      Serial.print("\"source\": "); Serial.print(SENSORS[i].getSource()); Serial.print(", ");
       Serial.print("\"setPoint\": "); Serial.print(SENSORS[i].getSetPoint());
-      Serial.println("}");
     }
   }
+  Serial.println();
 }
 #endif
