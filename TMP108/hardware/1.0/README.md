@@ -13,7 +13,7 @@ The module cannot be used with resistance or current-loop sensors.
 
 The module has a simple user configuration interface consisting of a
 DIP switch, momentary push-button and LED outputs.
-A discrete LED indicates module operating state.
+A separate LED indicates module operating state.
 
 ## Active components
 
@@ -34,8 +34,8 @@ A discrete LED indicates module operating state.
 
 The prototype module uses through-hole components on a 75mm square PCB
 mounted in a flanged ABS enclosure.
-The enclosure is machined to accommodate an NMEA cable connector, two
-6mm cable grommets and single 3mm LED indicator.
+The enclosure is machined to accommodate an NMEA cable connector and
+a single 3mm LED indicator.
 
 | Element         | Device |
 |:----------------|:-------|
