@@ -1,5 +1,5 @@
 /**********************************************************************
- * tsense-1.0.0.cpp - TSENSE firmware version 1.0.0.
+ * TMP108.cpp - firmware for 8-channel N2K temperature sensor module.
  * Copyright (c) 2021 Paul Reeve, <preeve@pdjr.eu>
  *
  * This firmware provides an 8-channel temperature senor interface
@@ -7,6 +7,10 @@
  * Temperature, Extended Range.
  * 
  * The firmware supports LM335Z sensors.
+ *
+ * Version history:
+ * 1.0		21/03		Test prototype.
+ * 1.1		22/06		First production release.
  */
 
 #include <Arduino.h>
@@ -122,8 +126,8 @@
 #define PRODUCT_LEN 1
 #define PRODUCT_N2K_VERSION 2101
 #define PRODUCT_SERIAL_CODE "002-849" // PRODUCT_CODE + DEVICE_UNIQUE_NUMBER
-#define PRODUCT_TYPE "TSENSE"
-#define PRODUCT_VERSION "1.0 (Mar 2021)"
+#define PRODUCT_TYPE "TMP108"
+#define PRODUCT_VERSION "1.1 (Jun 2022)"
 
 /**********************************************************************
  * Include the build.h header file which can be used to override any or
