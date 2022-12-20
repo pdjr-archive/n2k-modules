@@ -6,4 +6,10 @@ K switch normally-open pushbutton push-button
 F ~
 $ENDCMP
 #
+$CMP SPDT_RELAY
+D Standex Meder DIP reed relay, SPDT
+K Single Pole Reed Relay SPDT
+F https://standexelectronics.com/wp-content/uploads/datasheet_reed_relay_DIP.pdf
+$ENDCMP
+#
 #End Doc Library

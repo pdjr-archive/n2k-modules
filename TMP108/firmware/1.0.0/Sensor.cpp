@@ -53,7 +53,7 @@ void Sensor::setTemperature(double temperature) {
 }
 
 void Sensor::invalidate(unsigned char gpio) {
-  this->config = { gpio, 0xff, 0xff, 0.0 };
+  this->config = { 0x00, 0xff, 0xff, 0.0 };
   this->temperature = 0.0;
 }
 
